@@ -1,0 +1,153 @@
+# Default values for wazuh-agent.
+
+# -- (Required) Wazuh manager IP address or hostname
+manager:
+  address: ""
+  # -- Wazuh manager communication port
+  port: 1514
+  # -- Communication protocol (tcp or udp)
+  protocol: tcp
+
+# -- Agent registration settings
+registration:
+  # -- Registration server address (defaults to manager.address if empty)
+  server: ""
+  # -- Registration port
+  port: 1515
+  # -- (Required) Registration password (or use existingSecret)
+  password: ""
+  # -- Use an existing secret for authd.pass instead of creating one
+  existingSecret: ""
+  # -- Key in the existing secret containing the password
+  existingSecretKey: ""
+
+# -- Agent name prefix (combined with node name)
+agentNamePrefix: "k8s"
+
+# -- Container image configuration
+image:
+  repository: wazuh/wazuh-agent
+  tag: "4.14.0"
+  pullPolicy: IfNotPresent
+
+# -- Image pull secrets for private registries
+imagePullSecrets: []
+
+# -- Init container image for setup tasks
+initImage:
+  repository: busybox
+  tag: "1.37"
+  pullPolicy: IfNotPresent
+
+# -- Pod security context
+podSecurityContext:
+  fsGroup: 999
+  fsGroupChangePolicy: OnRootMismatch
+
+# -- Container security context for Wazuh agent
+securityContext:
+  runAsUser: 0
+  runAsGroup: 0
+  allowPrivilegeEscalation: true
+  capabilities:
+    add: ["SETGID", "SETUID"]
+
+# -- Resource limits and requests
+resources:
+  limits:
+    cpu: 200m
+    memory: 256Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+# -- Node selector for pod scheduling
+nodeSelector: {}
+
+# -- Tolerations for pod scheduling
+tolerations:
+  - key: node-role.kubernetes.io/control-plane
+    effect: NoSchedule
+  - key: node-role.kubernetes.io/master
+    effect: NoSchedule
+
+# -- Affinity rules for pod scheduling
+affinity: {}
+
+# -- Priority class name
+priorityClassName: ""
+
+# -- Update strategy for DaemonSet
+updateStrategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxUnavailable: 1
+
+# -- Termination grace period in seconds
+terminationGracePeriodSeconds: 20
+
+# -- Additional pod labels
+podLabels: {}
+
+# -- Additional pod annotations
+podAnnotations: {}
+
+# -- Volume mounts for the wazuh-agent container
+# IMPORTANT: A volume named "wazuh-agent-data" mounted at /var/ossec is required
+# for the init containers to work properly. You can use hostPath, emptyDir, or PVC.
+volumeMounts:
+  - name: wazuh-agent-data
+    mountPath: /var/ossec
+  # - name: host-logs
+  #   mountPath: /host/var/log
+  #   readOnly: true
+  # - name: docker-logs
+  #   mountPath: /host/var/lib/docker/containers
+  #   readOnly: true
+
+# -- Volumes definition (user controls types and paths)
+# IMPORTANT: A volume named "wazuh-agent-data" is required for the init containers.
+volumes:
+  - name: wazuh-agent-data
+    hostPath:
+      path: /var/lib/wazuh-agent
+      type: DirectoryOrCreate
+  # - name: host-logs
+  #   hostPath:
+  #     path: /var/log
+  #     type: Directory
+  # - name: docker-logs
+  #   hostPath:
+  #     path: /var/lib/docker/containers
+  #     type: DirectoryOrCreate
+
+# -- local_internal_options.conf base content
+localInternalOptions: |
+  wazuh_command.remote_commands=1
+
+# -- Additional localfile entries for ossec.conf (raw XML)
+extraLocalfiles: ""
+
+# -- Additional local_internal_options.conf entries
+extraLocalInternalOptions: ""
+
+# -- ServiceAccount configuration
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+# -- RBAC configuration
+rbac:
+  create: true
+
+# -- PodDisruptionBudget configuration
+podDisruptionBudget:
+  enabled: false
+  minAvailable: 1
+  # maxUnavailable: 1
+
+# -- NetworkPolicy configuration
+networkPolicy:
+  enabled: false
+  extraEgress: []

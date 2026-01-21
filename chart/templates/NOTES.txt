@@ -1,0 +1,48 @@
+================================================================================
+                     WAZUH AGENT - Helm Chart Deployment
+================================================================================
+
+Chart Version: {{ .Chart.Version }}
+App Version:   {{ .Chart.AppVersion }}
+Release Name:  {{ .Release.Name }}
+Namespace:     {{ .Release.Namespace }}
+
+--------------------------------------------------------------------------------
+CONFIGURATION
+--------------------------------------------------------------------------------
+
+Agent Prefix: {{ .Values.agentNamePrefix }}
+
+--------------------------------------------------------------------------------
+WAZUH MANAGER
+--------------------------------------------------------------------------------
+
+Address:           {{ .Values.manager.address | default "<NOT SET>" }}
+Port:              {{ .Values.manager.port }}
+Protocol:          {{ .Values.manager.protocol }}
+Registration Port: {{ .Values.registration.port }}
+{{- if not .Values.manager.address }}
+
+WARNING: Manager address not set! Agents won't connect.
+         Set 'manager.address' in your values.
+{{- end }}
+
+--------------------------------------------------------------------------------
+COMMANDS
+--------------------------------------------------------------------------------
+
+# List pods:
+kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/name={{ include "wazuh-agent.name" . }}
+
+# DaemonSet status:
+kubectl get ds {{ include "wazuh-agent.fullname" . }} -n {{ .Release.Namespace }}
+
+# View logs:
+kubectl logs -n {{ .Release.Namespace }} -l app.kubernetes.io/name={{ include "wazuh-agent.name" . }} -c wazuh-agent --tail=20
+
+# Agent status:
+kubectl exec -n {{ .Release.Namespace }} -it <pod> -c wazuh-agent -- /var/ossec/bin/ossec-control status
+
+================================================================================
+https://documentation.wazuh.com/
+================================================================================

@@ -1,0 +1,317 @@
+# Wazuh Agent Helm Chart
+
+A Helm chart for deploying Wazuh agents on Kubernetes as a DaemonSet.
+
+## Description
+
+This chart deploys Wazuh security agents across all nodes in your Kubernetes cluster. Each agent connects to your Wazuh manager for centralized security monitoring, intrusion detection, vulnerability assessment, and log analysis.
+
+The chart uses a DaemonSet to ensure every node (including control-plane nodes) runs a Wazuh agent, providing comprehensive visibility into your cluster's security posture.
+
+## Prerequisites
+
+- Kubernetes 1.20+
+- Helm 3.0+
+- A running Wazuh manager
+
+## Installation
+
+### Install from OCI Registry
+
+```bash
+helm install wazuh-agent oci://ghcr.io/MaximeWewer/charts/wazuh-agent \
+  --namespace wazuh \
+  --create-namespace \
+  --set manager.address=<WAZUH_MANAGER_IP> \
+  --set registration.password=<REGISTRATION_PASSWORD>
+```
+
+### Install from Source
+
+```bash
+git clone https://github.com/MaximeWewer/wazuh-agent-helm.git
+cd wazuh-agent-helm
+
+helm install wazuh-agent ./chart \
+  --namespace wazuh \
+  --create-namespace \
+  --set manager.address=<WAZUH_MANAGER_IP> \
+  --set registration.password=<REGISTRATION_PASSWORD>
+```
+
+## Configuration
+
+### Required Parameters
+
+| Parameter               | Description                                                        |
+| ----------------------- | ------------------------------------------------------------------ |
+| `manager.address`       | Wazuh manager IP address or hostname                               |
+| `registration.password` | Agent registration password (or use `registration.existingSecret`) |
+
+### Manager Configuration
+
+| Parameter          | Description                      | Default |
+| ------------------ | -------------------------------- | ------- |
+| `manager.address`  | Wazuh manager IP/hostname        | `""`    |
+| `manager.port`     | Manager communication port       | `1514`  |
+| `manager.protocol` | Communication protocol (tcp/udp) | `tcp`   |
+
+### Registration Configuration
+
+| Parameter                        | Description                                       | Default |
+| -------------------------------- | ------------------------------------------------- | ------- |
+| `registration.server`            | Registration server (defaults to manager.address) | `""`    |
+| `registration.port`              | Registration port                                 | `1515`  |
+| `registration.password`          | Registration password                             | `""`    |
+| `registration.existingSecret`    | Use existing secret for authd.pass                | `""`    |
+| `registration.existingSecretKey` | Key in existing secret                            | `""`    |
+
+### Agent Configuration
+
+| Parameter                   | Description                                       | Default                           |
+| --------------------------- | ------------------------------------------------- | --------------------------------- |
+| `agentNamePrefix`           | Prefix for agent name (combined with node name)   | `k8s`                             |
+| `localInternalOptions`      | Base content for local_internal_options.conf      | `wazuh_command.remote_commands=1` |
+| `extraLocalfiles`           | Additional localfile entries for ossec.conf (XML) | `""`                              |
+| `extraLocalInternalOptions` | Additional local_internal_options.conf entries    | `""`                              |
+
+### Image Configuration
+
+| Parameter              | Description                  | Default             |
+| ---------------------- | ---------------------------- | ------------------- |
+| `image.repository`     | Wazuh agent image repository | `wazuh/wazuh-agent` |
+| `image.tag`            | Image tag                    | `4.14.0`            |
+| `image.pullPolicy`     | Image pull policy            | `IfNotPresent`      |
+| `initImage.repository` | Init container image         | `busybox`           |
+| `initImage.tag`        | Init container image tag     | `1.37`              |
+| `imagePullSecrets`     | Image pull secrets           | `[]`                |
+
+### Resources and Scheduling
+
+| Parameter                   | Description         | Default                   |
+| --------------------------- | ------------------- | ------------------------- |
+| `resources.limits.cpu`      | CPU limit           | `200m`                    |
+| `resources.limits.memory`   | Memory limit        | `256Mi`                   |
+| `resources.requests.cpu`    | CPU request         | `100m`                    |
+| `resources.requests.memory` | Memory request      | `128Mi`                   |
+| `nodeSelector`              | Node selector       | `{}`                      |
+| `tolerations`               | Pod tolerations     | Control-plane tolerations |
+| `affinity`                  | Pod affinity rules  | `{}`                      |
+| `priorityClassName`         | Priority class name | `""`                      |
+
+### Pod Configuration
+
+| Parameter                                     | Description                   | Default         |
+| --------------------------------------------- | ----------------------------- | --------------- |
+| `podLabels`                                   | Additional pod labels         | `{}`            |
+| `podAnnotations`                              | Additional pod annotations    | `{}`            |
+| `terminationGracePeriodSeconds`               | Termination grace period      | `20`            |
+| `updateStrategy.type`                         | DaemonSet update strategy     | `RollingUpdate` |
+| `updateStrategy.rollingUpdate.maxUnavailable` | Max unavailable during update | `1`             |
+
+### Security Context
+
+| Parameter                                  | Description                  | Default                |
+| ------------------------------------------ | ---------------------------- | ---------------------- |
+| `podSecurityContext.fsGroup`               | Pod security context fsGroup | `999`                  |
+| `podSecurityContext.fsGroupChangePolicy`   | fsGroup change policy        | `OnRootMismatch`       |
+| `securityContext.runAsUser`                | Container runAsUser          | `0`                    |
+| `securityContext.runAsGroup`               | Container runAsGroup         | `0`                    |
+| `securityContext.allowPrivilegeEscalation` | Allow privilege escalation   | `true`                 |
+| `securityContext.capabilities.add`         | Added capabilities           | `["SETGID", "SETUID"]` |
+
+### RBAC and ServiceAccount
+
+| Parameter                    | Description                 | Default |
+| ---------------------------- | --------------------------- | ------- |
+| `serviceAccount.create`      | Create service account      | `true`  |
+| `serviceAccount.name`        | Service account name        | `""`    |
+| `serviceAccount.annotations` | Service account annotations | `{}`    |
+| `rbac.create`                | Create RBAC resources       | `true`  |
+
+### Volumes
+
+> **Important:** A volume named `wazuh-agent-data` mounted at `/var/ossec` is required for the init containers to work properly.
+
+| Parameter      | Description                           | Default                          |
+| -------------- | ------------------------------------- | -------------------------------- |
+| `volumeMounts` | Volume mounts for the agent container | wazuh-agent-data at /var/ossec   |
+| `volumes`      | Volume definitions                    | hostPath at /var/lib/wazuh-agent |
+
+### Optional Features
+
+| Parameter                          | Description                | Default |
+| ---------------------------------- | -------------------------- | ------- |
+| `podDisruptionBudget.enabled`      | Enable PodDisruptionBudget | `false` |
+| `podDisruptionBudget.minAvailable` | Minimum available pods     | `1`     |
+| `networkPolicy.enabled`            | Enable NetworkPolicy       | `false` |
+| `networkPolicy.extraEgress`        | Additional egress rules    | `[]`    |
+
+## Examples
+
+### Basic Deployment
+
+```yaml
+# values.yaml
+manager:
+  address: "192.168.1.100"
+
+registration:
+  password: "my-secure-password"
+```
+
+### Using an Existing Secret
+
+```bash
+# Create secret
+kubectl create secret generic wazuh-authd \
+  --namespace wazuh \
+  --from-literal=authd.pass='my-secure-password'
+
+# Install with existing secret
+helm install wazuh-agent ./chart \
+  --namespace wazuh \
+  --set manager.address=192.168.1.100 \
+  --set registration.existingSecret=wazuh-authd
+```
+
+### Monitoring Host Logs
+
+```yaml
+manager:
+  address: "192.168.1.100"
+
+registration:
+  password: "my-secure-password"
+
+volumeMounts:
+  - name: wazuh-agent-data
+    mountPath: /var/ossec
+  - name: host-logs
+    mountPath: /host/var/log
+    readOnly: true
+
+volumes:
+  - name: wazuh-agent-data
+    hostPath:
+      path: /var/lib/wazuh-agent
+      type: DirectoryOrCreate
+  - name: host-logs
+    hostPath:
+      path: /var/log
+      type: Directory
+
+extraLocalfiles: |
+  <localfile>
+    <log_format>syslog</log_format>
+    <location>/host/var/log/syslog</location>
+  </localfile>
+  <localfile>
+    <log_format>syslog</log_format>
+    <location>/host/var/log/auth.log</location>
+  </localfile>
+```
+
+### Kubernetes Audit Logs
+
+See `examples/values-auditlog.yaml` for monitoring Kubernetes audit logs on control-plane nodes.
+
+```bash
+helm install wazuh-audit ./chart \
+  --namespace wazuh \
+  -f examples/values-auditlog.yaml \
+  --set manager.address=192.168.1.100 \
+  --set registration.password=my-secure-password
+```
+
+### Using emptyDir (No Persistence)
+
+```yaml
+volumes:
+  - name: wazuh-agent-data
+    emptyDir: {}
+```
+
+### Using PVC
+
+```yaml
+volumes:
+  - name: wazuh-agent-data
+    persistentVolumeClaim:
+      claimName: wazuh-agent-pvc
+```
+
+## Architecture
+
+The chart deploys the following resources:
+
+| Resource            | Description                                             |
+| ------------------- | ------------------------------------------------------- |
+| DaemonSet           | Runs a Wazuh agent pod on each node                     |
+| ConfigMap           | Contains `ossec.conf` and `local_internal_options.conf` |
+| Secret              | Stores the registration password (`authd.pass`)         |
+| ServiceAccount      | Pod identity                                            |
+| Role/RoleBinding    | RBAC permissions                                        |
+| PodDisruptionBudget | High availability (optional)                            |
+| NetworkPolicy       | Network security (optional)                             |
+
+### Init Containers
+
+The pod includes 6 init containers that run in sequence:
+
+1. `cleanup-stale-files` - Removes stale PID and lock files
+2. `seed-ossec-tree` - Seeds the ossec directory structure on first run
+3. `fix-permissions` - Sets correct ownership and permissions
+4. `write-ossec-config` - Writes and customizes ossec.conf
+5. `copy-local-options` - Copies local_internal_options.conf
+6. `copy-authd-pass` - Copies the registration password
+
+## Upgrading
+
+```bash
+helm upgrade wazuh-agent ./chart \
+  --namespace wazuh \
+  -f my-values.yaml
+```
+
+## Uninstalling
+
+```bash
+helm uninstall wazuh-agent --namespace wazuh
+```
+
+> **Note:** The hostPath volume data at `/var/lib/wazuh-agent` is not deleted automatically.
+
+## Troubleshooting
+
+### Check pod status
+
+```bash
+kubectl get pods -n wazuh -l app.kubernetes.io/name=wazuh-agent
+```
+
+### View agent logs
+
+```bash
+kubectl logs -n wazuh -l app.kubernetes.io/name=wazuh-agent -c wazuh-agent --tail=50
+```
+
+### Check agent status
+
+```bash
+kubectl exec -n wazuh -it <pod-name> -c wazuh-agent -- /var/ossec/bin/ossec-control status
+```
+
+### View ossec.conf
+
+```bash
+kubectl exec -n wazuh -it <pod-name> -c wazuh-agent -- cat /var/ossec/etc/ossec.conf
+```
+
+### Common Issues
+
+| Issue                  | Solution                                                |
+| ---------------------- | ------------------------------------------------------- |
+| Agent not connecting   | Verify `manager.address` is correct and reachable       |
+| Registration failed    | Check registration password and port (1515)             |
+| Init container failing | Ensure `wazuh-agent-data` volume is properly configured |

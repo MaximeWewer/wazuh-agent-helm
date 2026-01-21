@@ -1,0 +1,49 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "wazuh-agent.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "wazuh-agent.labels" . | nindent 4 }}
+data:
+  ossec.conf: |
+    <ossec_config>
+      <client>
+        <server>
+          <address>${WAZUH_MANAGER}</address>
+          <port>${WAZUH_PORT}</port>
+          <protocol>${WAZUH_PROTOCOL}</protocol>
+        </server>
+        <enrollment>
+          <enabled>yes</enabled>
+          <agent_name>${WAZUH_AGENT_NAME}</agent_name>
+          <manager_address>${WAZUH_REGISTRATION_SERVER}</manager_address>
+          <port>${WAZUH_REGISTRATION_PORT}</port>
+        </enrollment>
+        <notify_time>30</notify_time>
+        <time-reconnect>120</time-reconnect>
+        <auto_restart>yes</auto_restart>
+        <crypto_method>aes</crypto_method>
+      </client>
+
+      <client_buffer>
+        <disabled>no</disabled>
+        <queue_size>5000</queue_size>
+        <events_per_second>500</events_per_second>
+      </client_buffer>
+
+      <logging>
+        <log_format>plain</log_format>
+      </logging>
+
+      {{- if .Values.extraLocalfiles }}
+{{ .Values.extraLocalfiles | indent 6 }}
+      {{- end }}
+      
+    </ossec_config>
+
+  local_internal_options.conf: |
+    {{- .Values.localInternalOptions | nindent 4 }}
+    {{- if .Values.extraLocalInternalOptions }}
+{{ .Values.extraLocalInternalOptions | indent 4 }}
+    {{- end }}

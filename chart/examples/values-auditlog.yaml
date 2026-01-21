@@ -1,0 +1,69 @@
+# Example: Kubernetes Audit Logs monitoring
+# Deploy on control-plane nodes to collect K8s audit logs
+#
+# Usage:
+#   helm install wazuh-audit ./wazuh-agent -f examples/values-auditlog.yaml \
+#     --set manager.address=<MANAGER_IP> \
+#     --set registration.password=<PASSWORD>
+
+manager:
+  address: "" # Required: Wazuh manager IP/hostname
+
+registration:
+  password: "" # Required: Registration password
+
+agentNamePrefix: "k8s-audit"
+
+resources:
+  limits:
+    cpu: 300m
+    memory: 512Mi
+  requests:
+    cpu: 150m
+    memory: 256Mi
+
+# Only deploy on control-plane nodes
+nodeSelector:
+  node-role.kubernetes.io/control-plane: ""
+
+tolerations:
+  - key: node-role.kubernetes.io/control-plane
+    effect: NoSchedule
+  - key: node-role.kubernetes.io/master
+    effect: NoSchedule
+
+volumeMounts:
+  - name: wazuh-agent-data
+    mountPath: /var/ossec
+  - name: k8s-audit-logs
+    mountPath: /host/var/log/kubernetes
+    readOnly: true
+  - name: k8s-pods-logs
+    mountPath: /host/var/log/pods
+    readOnly: true
+
+volumes:
+  - name: wazuh-agent-data
+    hostPath:
+      path: /var/lib/wazuh-agent-audit
+      type: DirectoryOrCreate
+  - name: k8s-audit-logs
+    hostPath:
+      path: /var/log/kubernetes
+      type: DirectoryOrCreate
+  - name: k8s-pods-logs
+    hostPath:
+      path: /var/log/pods
+      type: DirectoryOrCreate
+
+extraLocalfiles: |
+  <!-- Kubernetes audit logs -->
+  <localfile>
+    <log_format>json</log_format>
+    <location>/host/var/log/kubernetes/audit.log</location>
+  </localfile>
+  <!-- API server logs -->
+  <localfile>
+    <log_format>syslog</log_format>
+    <location>/host/var/log/pods/kube-system_kube-apiserver-*/*/*.log</location>
+  </localfile>
