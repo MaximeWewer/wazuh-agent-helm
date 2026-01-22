@@ -20,14 +20,14 @@ The chart uses a DaemonSet to ensure every node (including control-plane nodes) 
 
 ```bash
 helm install wazuh-agent oci://ghcr.io/maximewewer/charts/wazuh-agent \
-  --version 1.0.0-wazuh4.14.2 \
+  --version 4.14.2 \
   --namespace wazuh \
   --create-namespace \
   --set manager.address=<WAZUH_MANAGER_IP> \
   --set registration.password=<REGISTRATION_PASSWORD>
 ```
 
-> **Note:** Chart versions follow the pattern `<chart_version>-wazuh<wazuh_version>` (e.g., `1.0.0-wazuh4.14.2`).
+> **Note:** Chart versions match Wazuh agent versions (e.g., `4.14.2`, `4.13.4`).
 
 ### Install from Source
 

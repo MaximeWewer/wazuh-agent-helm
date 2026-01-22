@@ -20,6 +20,11 @@ on:
         description: 'Wazuh version (e.g., 4.14.2) - required for set-default/add/remove'
         required: false
         type: string
+      chart_version:
+        description: 'Chart version to use (v1, v2) - only for add-version'
+        required: false
+        type: string
+        default: 'v1'
       create_release:
         description: 'Create a release after update'
         required: false
@@ -31,7 +36,6 @@ permissions:
   pull-requests: write
 
 env:
-  HELM_CHART_PATH: charts/v1
   VERSIONS_FILE: supported-versions.json
 
 jobs:
@@ -41,7 +45,6 @@ jobs:
     outputs:
       updated: ${{ steps.result.outputs.updated }}
       new_version: ${{ steps.result.outputs.new_version }}
-      chart_version: ${{ steps.result.outputs.chart_version }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -53,21 +56,25 @@ jobs:
         run: |
           echo "Fetching Wazuh tags from GitHub..."
 
-          # Fetch tags from Wazuh repository (v4.x.x format only)
+          # Fetch tags from Wazuh repository (v4.x.x and v5.x.x format)
           TAGS=$(curl -s "https://api.github.com/repos/wazuh/wazuh/tags?per_page=100" | \
             jq -r '.[].name' | \
-            grep -E '^v4\.[0-9]+\.[0-9]+$' | \
+            grep -E '^v[45]\.[0-9]+\.[0-9]+$' | \
             sort -V)
 
-          echo "Available Wazuh v4.x versions:"
+          echo "Available Wazuh versions:"
           echo "$TAGS"
 
-          # Get latest version (without v prefix)
-          LATEST=$(echo "$TAGS" | tail -1 | sed 's/^v//')
-          echo "Latest version: $LATEST"
+          # Get latest v4.x version (without v prefix)
+          LATEST_V4=$(echo "$TAGS" | grep '^v4\.' | tail -1 | sed 's/^v//')
+          echo "Latest v4.x version: $LATEST_V4"
 
-          # Store as newline-separated list
-          echo "latest=${LATEST}" >> $GITHUB_OUTPUT
+          # Get latest v5.x version if exists
+          LATEST_V5=$(echo "$TAGS" | grep '^v5\.' | tail -1 | sed 's/^v//' || echo "")
+          echo "Latest v5.x version: ${LATEST_V5:-none}"
+
+          echo "latest_v4=${LATEST_V4}" >> $GITHUB_OUTPUT
+          echo "latest_v5=${LATEST_V5}" >> $GITHUB_OUTPUT
 
           # Create JSON array
           VERSIONS_JSON=$(echo "$TAGS" | sed 's/^v//' | jq -R -s -c 'split("\n") | map(select(length > 0))')
@@ -79,22 +86,19 @@ jobs:
           if [ -f "${{ env.VERSIONS_FILE }}" ]; then
             CURRENT_DEFAULT=$(jq -r '.default_version' ${{ env.VERSIONS_FILE }})
             MIN_VERSION=$(jq -r '.minimum_version' ${{ env.VERSIONS_FILE }})
-            SUPPORTED_VERSIONS=$(jq -r '.versions[].version' ${{ env.VERSIONS_FILE }} | tr '\n' ' ')
           else
             CURRENT_DEFAULT=""
             MIN_VERSION="4.13.0"
-            SUPPORTED_VERSIONS=""
           fi
 
           echo "current_default=${CURRENT_DEFAULT}" >> $GITHUB_OUTPUT
           echo "min_version=${MIN_VERSION}" >> $GITHUB_OUTPUT
-          echo "supported_versions=${SUPPORTED_VERSIONS}" >> $GITHUB_OUTPUT
 
       - name: Sync versions from upstream
         if: github.event.inputs.action == 'sync' || github.event_name == 'schedule'
         id: sync
         run: |
-          LATEST="${{ steps.wazuh_versions.outputs.latest }}"
+          LATEST_V4="${{ steps.wazuh_versions.outputs.latest_v4 }}"
           MIN_VERSION="${{ steps.config.outputs.min_version }}"
           UPSTREAM_VERSIONS='${{ steps.wazuh_versions.outputs.versions_json }}'
 
@@ -108,18 +112,19 @@ jobs:
           # Get excluded versions from config
           EXCLUDED=$(jq -r '.excluded_versions // [] | .[]' ${{ env.VERSIONS_FILE }} 2>/dev/null || echo "")
 
-          # Build new versions array
-          NEW_VERSIONS=$(echo "$FILTERED_VERSIONS" | jq -c --arg latest "$LATEST" --argjson excluded "$(echo "$EXCLUDED" | jq -R -s -c 'split("\n") | map(select(length > 0))')" '
+          # Build new versions array with chart_version based on major version
+          NEW_VERSIONS=$(echo "$FILTERED_VERSIONS" | jq -c --arg latest "$LATEST_V4" --argjson excluded "$(echo "$EXCLUDED" | jq -R -s -c 'split("\n") | map(select(length > 0))')" '
             map(select(. as $v | $excluded | index($v) | not)) |
             map({
               version: .,
+              chart_version: (if (. | startswith("5.")) then "v2" else "v1" end),
               supported: true,
               default: (. == $latest)
             })
           ')
 
           # Update supported-versions.json
-          jq --argjson versions "$NEW_VERSIONS" --arg latest "$LATEST" --arg now "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '
+          jq --argjson versions "$NEW_VERSIONS" --arg latest "$LATEST_V4" --arg now "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '
             .versions = $versions |
             .default_version = $latest |
             .last_sync = $now
@@ -128,27 +133,25 @@ jobs:
           echo "Updated ${{ env.VERSIONS_FILE }}"
           cat ${{ env.VERSIONS_FILE }}
 
-          echo "new_default=${LATEST}" >> $GITHUB_OUTPUT
+          echo "new_default=${LATEST_V4}" >> $GITHUB_OUTPUT
 
       - name: Set default version
         if: github.event.inputs.action == 'set-default'
         id: set_default
         run: |
           VERSION="${{ github.event.inputs.wazuh_version }}"
-          VERSION="${VERSION#v}"  # Remove v prefix if present
+          VERSION="${VERSION#v}"
 
           if [ -z "$VERSION" ]; then
             echo "::error::Version is required for set-default action"
             exit 1
           fi
 
-          # Check if version exists in supported versions
           if ! jq -e --arg v "$VERSION" '.versions[] | select(.version == $v)' ${{ env.VERSIONS_FILE }} > /dev/null; then
             echo "::error::Version $VERSION is not in supported versions"
             exit 1
           fi
 
-          # Update default
           jq --arg v "$VERSION" '
             .default_version = $v |
             .versions = [.versions[] | .default = (.version == $v)]
@@ -162,63 +165,66 @@ jobs:
         id: add_version
         run: |
           VERSION="${{ github.event.inputs.wazuh_version }}"
-          VERSION="${VERSION#v}"  # Remove v prefix if present
+          VERSION="${VERSION#v}"
+          CHART_VERSION="${{ github.event.inputs.chart_version }}"
 
           if [ -z "$VERSION" ]; then
             echo "::error::Version is required for add-version action"
             exit 1
           fi
 
-          # Check if version exists upstream
+          # Determine chart_version from major version if not specified
+          if [ -z "$CHART_VERSION" ]; then
+            if [[ "$VERSION" == 5.* ]]; then
+              CHART_VERSION="v2"
+            else
+              CHART_VERSION="v1"
+            fi
+          fi
+
           UPSTREAM_VERSIONS='${{ steps.wazuh_versions.outputs.versions_json }}'
           if ! echo "$UPSTREAM_VERSIONS" | jq -e --arg v "$VERSION" 'index($v) != null' > /dev/null; then
             echo "::warning::Version $VERSION not found in upstream Wazuh releases"
           fi
 
-          # Check if already in supported versions
           if jq -e --arg v "$VERSION" '.versions[] | select(.version == $v)' ${{ env.VERSIONS_FILE }} > /dev/null; then
             echo "Version $VERSION already exists"
             exit 0
           fi
 
-          # Add to supported versions
-          jq --arg v "$VERSION" '
-            .versions = (.versions + [{version: $v, supported: true, default: false}]) |
+          jq --arg v "$VERSION" --arg cv "$CHART_VERSION" '
+            .versions = (.versions + [{version: $v, chart_version: $cv, supported: true, default: false}]) |
             .versions = (.versions | sort_by(.version) | reverse)
           ' ${{ env.VERSIONS_FILE }} > tmp.json && mv tmp.json ${{ env.VERSIONS_FILE }}
 
-          # Remove from excluded if present
           jq --arg v "$VERSION" '
             .excluded_versions = (.excluded_versions // [] | map(select(. != $v)))
           ' ${{ env.VERSIONS_FILE }} > tmp.json && mv tmp.json ${{ env.VERSIONS_FILE }}
 
-          echo "Added version $VERSION"
+          echo "Added version $VERSION with chart $CHART_VERSION"
 
       - name: Remove version
         if: github.event.inputs.action == 'remove-version'
         id: remove_version
         run: |
           VERSION="${{ github.event.inputs.wazuh_version }}"
-          VERSION="${VERSION#v}"  # Remove v prefix if present
+          VERSION="${VERSION#v}"
 
           if [ -z "$VERSION" ]; then
             echo "::error::Version is required for remove-version action"
             exit 1
           fi
 
-          # Check if it's the default version
           CURRENT_DEFAULT=$(jq -r '.default_version' ${{ env.VERSIONS_FILE }})
           if [ "$VERSION" == "$CURRENT_DEFAULT" ]; then
             echo "::error::Cannot remove default version. Set a new default first."
             exit 1
           fi
 
-          # Remove from supported versions
           jq --arg v "$VERSION" '
             .versions = [.versions[] | select(.version != $v)]
           ' ${{ env.VERSIONS_FILE }} > tmp.json && mv tmp.json ${{ env.VERSIONS_FILE }}
 
-          # Add to excluded versions
           jq --arg v "$VERSION" '
             .excluded_versions = ((.excluded_versions // []) + [$v] | unique)
           ' ${{ env.VERSIONS_FILE }} > tmp.json && mv tmp.json ${{ env.VERSIONS_FILE }}
@@ -238,33 +244,30 @@ jobs:
 
           echo "new_default=${NEW_DEFAULT}" >> $GITHUB_OUTPUT
 
-      - name: Update Helm chart with default version
+      - name: Update chart files with default version
         id: update_chart
         run: |
           NEW_DEFAULT="${{ steps.new_default.outputs.new_default }}"
-          CURRENT_TAG=$(grep '^  tag:' ${{ env.HELM_CHART_PATH }}/values.yaml | head -1 | awk -F'"' '{print $2}')
+
+          # Get chart_version for the default version
+          CHART_VERSION=$(jq -r --arg v "$NEW_DEFAULT" '.versions[] | select(.version == $v) | .chart_version // "v1"' ${{ env.VERSIONS_FILE }})
+          CHART_PATH="charts/${CHART_VERSION}"
+
+          CURRENT_TAG=$(grep '^  tag:' ${CHART_PATH}/values.yaml | head -1 | awk -F'"' '{print $2}')
 
           echo "Current image tag: ${CURRENT_TAG}"
           echo "New default: ${NEW_DEFAULT}"
+          echo "Chart path: ${CHART_PATH}"
 
           if [ "${CURRENT_TAG}" != "${NEW_DEFAULT}" ]; then
             # Update image tag in values.yaml
-            sed -i "s/tag: \"[0-9]*\.[0-9]*\.[0-9]*\"/tag: \"${NEW_DEFAULT}\"/" ${{ env.HELM_CHART_PATH }}/values.yaml
+            sed -i "s/tag: \"[0-9]*\.[0-9]*\.[0-9]*\"/tag: \"${NEW_DEFAULT}\"/" ${CHART_PATH}/values.yaml
 
-            # Update appVersion in Chart.yaml
-            sed -i "s/^appVersion:.*/appVersion: \"${NEW_DEFAULT}\"/" ${{ env.HELM_CHART_PATH }}/Chart.yaml
-
-            # Bump chart version (patch version)
-            CURRENT_CHART_VERSION=$(grep '^version:' ${{ env.HELM_CHART_PATH }}/Chart.yaml | awk '{print $2}')
-            MAJOR=$(echo $CURRENT_CHART_VERSION | cut -d. -f1)
-            MINOR=$(echo $CURRENT_CHART_VERSION | cut -d. -f2)
-            PATCH=$(echo $CURRENT_CHART_VERSION | cut -d. -f3)
-            NEW_CHART_VERSION="${MAJOR}.${MINOR}.$((PATCH + 1))"
-
-            sed -i "s/^version:.*/version: ${NEW_CHART_VERSION}/" ${{ env.HELM_CHART_PATH }}/Chart.yaml
+            # Update version and appVersion in Chart.yaml
+            sed -i "s/^version:.*/version: ${NEW_DEFAULT}/" ${CHART_PATH}/Chart.yaml
+            sed -i "s/^appVersion:.*/appVersion: \"${NEW_DEFAULT}\"/" ${CHART_PATH}/Chart.yaml
 
             echo "updated=true" >> $GITHUB_OUTPUT
-            echo "chart_version=${NEW_CHART_VERSION}" >> $GITHUB_OUTPUT
           else
             echo "No chart update needed"
             echo "updated=false" >> $GITHUB_OUTPUT
@@ -275,7 +278,6 @@ jobs:
         run: |
           echo "updated=${{ steps.update_chart.outputs.updated || 'false' }}" >> $GITHUB_OUTPUT
           echo "new_version=${{ steps.new_default.outputs.new_default }}" >> $GITHUB_OUTPUT
-          echo "chart_version=${{ steps.update_chart.outputs.chart_version || '' }}" >> $GITHUB_OUTPUT
 
       - name: Create pull request
         if: steps.update_chart.outputs.updated == 'true' && github.event.inputs.create_release != 'true'
@@ -285,22 +287,21 @@ jobs:
           commit-message: "chore: update Wazuh agent to ${{ steps.new_default.outputs.new_default }}"
           title: "chore: update Wazuh agent to ${{ steps.new_default.outputs.new_default }}"
           body: |
-            ## Wazuh Agent Version Update
+            ## Wazuh agent version update
 
             **Action:** ${{ github.event.inputs.action || 'sync' }}
 
             ### Changes
             - Updated default Wazuh version to **${{ steps.new_default.outputs.new_default }}**
             - Updated `image.tag` in `values.yaml`
-            - Updated `appVersion` in `Chart.yaml`
-            - Bumped chart version to **${{ steps.update_chart.outputs.chart_version }}**
+            - Updated `version` and `appVersion` in `Chart.yaml`
 
-            ### Supported Versions
+            ### Supported versions
             ```json
             $(jq '.versions' ${{ env.VERSIONS_FILE }})
             ```
 
-            ### Wazuh Release Notes
+            ### Wazuh release notes
             - [Wazuh ${{ steps.new_default.outputs.new_default }}](https://github.com/wazuh/wazuh/releases/tag/v${{ steps.new_default.outputs.new_default }})
 
             ---
@@ -322,24 +323,23 @@ jobs:
           git push
 
           # Create and push tag to trigger release workflow
-          git tag "${{ steps.update_chart.outputs.chart_version }}"
-          git push origin "${{ steps.update_chart.outputs.chart_version }}"
+          git tag "${{ steps.new_default.outputs.new_default }}"
+          git push origin "${{ steps.new_default.outputs.new_default }}"
 
       - name: Summary
         run: |
           cat << 'EOF' >> $GITHUB_STEP_SUMMARY
-          ## Wazuh Version Management Results
+          ## Wazuh version management results
 
           **Action:** ${{ github.event.inputs.action || 'sync' }}
 
           ### Configuration
           | Item | Value |
           |------|-------|
-          | Default Version | ${{ steps.new_default.outputs.new_default }} |
-          | Chart Updated | ${{ steps.update_chart.outputs.updated || 'false' }} |
-          | New Chart Version | ${{ steps.update_chart.outputs.chart_version || 'N/A' }} |
+          | Default version | ${{ steps.new_default.outputs.new_default }} |
+          | Chart updated | ${{ steps.update_chart.outputs.updated || 'false' }} |
 
-          ### Supported Versions
+          ### Supported versions
           ```json
           EOF
           jq '.versions' ${{ env.VERSIONS_FILE }} >> $GITHUB_STEP_SUMMARY
@@ -347,6 +347,6 @@ jobs:
 
           cat << 'EOF' >> $GITHUB_STEP_SUMMARY
 
-          ### Available Upstream Versions
+          ### Available upstream versions
           EOF
           echo '${{ steps.wazuh_versions.outputs.versions_json }}' | jq '.' >> $GITHUB_STEP_SUMMARY

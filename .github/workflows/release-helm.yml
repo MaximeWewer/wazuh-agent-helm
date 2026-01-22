@@ -5,19 +5,15 @@ on:
     tags:
       - '*.*.*'
     paths:
-      - 'charts/v1/**'
+      - 'charts/**'
       - 'supported-versions.json'
   pull_request:
     types: [closed]
     branches: [main]
     paths:
-      - 'charts/v1/**'
+      - 'charts/**'
   workflow_dispatch:
     inputs:
-      version:
-        description: 'Chart version to release (e.g., 1.0.0). Leave empty to use Chart.yaml version.'
-        required: false
-        type: string
       publish_all_versions:
         description: 'Publish chart for all supported Wazuh versions'
         required: false
@@ -34,18 +30,15 @@ permissions:
 
 env:
   REGISTRY: ghcr.io
-  HELM_CHART_PATH: charts/v1
   VERSIONS_FILE: supported-versions.json
 
 jobs:
   prepare:
     name: Prepare release
     runs-on: ubuntu-latest
-    # Skip if PR was not merged
     if: github.event_name != 'pull_request' || github.event.pull_request.merged == true
     outputs:
-      chart_version: ${{ steps.version.outputs.chart_version }}
-      wazuh_versions: ${{ steps.versions.outputs.matrix }}
+      matrix: ${{ steps.versions.outputs.matrix }}
       default_version: ${{ steps.versions.outputs.default }}
       owner_lower: ${{ steps.lowercase.outputs.owner }}
     steps:
@@ -60,25 +53,6 @@ jobs:
           OWNER_LOWER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
           echo "owner=${OWNER_LOWER}" >> $GITHUB_OUTPUT
 
-      - name: Get chart version
-        id: version
-        run: |
-          if [ "${{ github.event_name }}" == "push" ] && [[ "${{ github.ref }}" == refs/tags/* ]]; then
-            # Tag push - use tag as version
-            VERSION=${GITHUB_REF#refs/tags/}
-            VERSION="${VERSION#v}"
-          elif [ -n "${{ github.event.inputs.version }}" ]; then
-            # Manual input
-            VERSION="${{ github.event.inputs.version }}"
-            VERSION="${VERSION#v}"
-          else
-            # Use version from Chart.yaml
-            VERSION=$(grep '^version:' ${{ env.HELM_CHART_PATH }}/Chart.yaml | awk '{print $2}')
-          fi
-
-          echo "chart_version=${VERSION}" >> $GITHUB_OUTPUT
-          echo "Chart version: ${VERSION}"
-
       - name: Determine Wazuh versions to publish
         id: versions
         run: |
@@ -87,30 +61,33 @@ jobs:
           echo "default=${DEFAULT_VERSION}" >> $GITHUB_OUTPUT
 
           if [ "${{ github.event.inputs.publish_all_versions }}" == "true" ]; then
-            # All supported versions
-            VERSIONS=$(jq -c '[.versions[] | select(.supported == true) | .version]' ${{ env.VERSIONS_FILE }})
-            echo "Publishing all supported versions: ${VERSIONS}"
+            # All supported versions with their chart_version
+            MATRIX=$(jq -c '[.versions[] | select(.supported == true) | {version: .version, chart_version: .chart_version}]' ${{ env.VERSIONS_FILE }})
+            echo "Publishing all supported versions"
           elif [ -n "${{ github.event.inputs.wazuh_version }}" ]; then
-            # Specific version
+            # Specific version - find its chart_version
             VERSION="${{ github.event.inputs.wazuh_version }}"
             VERSION="${VERSION#v}"
-            VERSIONS="[\"${VERSION}\"]"
-            echo "Publishing specific version: ${VERSION}"
+            CHART_VERSION=$(jq -r --arg v "$VERSION" '.versions[] | select(.version == $v) | .chart_version // "v1"' ${{ env.VERSIONS_FILE }})
+            MATRIX="[{\"version\": \"${VERSION}\", \"chart_version\": \"${CHART_VERSION}\"}]"
+            echo "Publishing specific version: ${VERSION} with chart ${CHART_VERSION}"
           else
             # Default version only
-            VERSIONS="[\"${DEFAULT_VERSION}\"]"
-            echo "Publishing default version: ${DEFAULT_VERSION}"
+            CHART_VERSION=$(jq -r --arg v "$DEFAULT_VERSION" '.versions[] | select(.version == $v) | .chart_version // "v1"' ${{ env.VERSIONS_FILE }})
+            MATRIX="[{\"version\": \"${DEFAULT_VERSION}\", \"chart_version\": \"${CHART_VERSION}\"}]"
+            echo "Publishing default version: ${DEFAULT_VERSION} with chart ${CHART_VERSION}"
           fi
 
-          echo "matrix=${VERSIONS}" >> $GITHUB_OUTPUT
+          echo "matrix=${MATRIX}" >> $GITHUB_OUTPUT
+          echo "Matrix: ${MATRIX}"
 
   release:
-    name: Release ${{ matrix.wazuh_version }}
+    name: Release ${{ matrix.config.version }}
     needs: prepare
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        wazuh_version: ${{ fromJson(needs.prepare.outputs.wazuh_versions) }}
+        config: ${{ fromJson(needs.prepare.outputs.matrix) }}
       fail-fast: false
     steps:
       - name: Checkout code
@@ -125,63 +102,53 @@ jobs:
         run: |
           echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ${{ env.REGISTRY }} --username ${{ github.actor }} --password-stdin
 
-      - name: Prepare chart for Wazuh ${{ matrix.wazuh_version }}
+      - name: Prepare chart for Wazuh ${{ matrix.config.version }}
         id: prepare_chart
         run: |
-          CHART_VERSION="${{ needs.prepare.outputs.chart_version }}"
-          WAZUH_VERSION="${{ matrix.wazuh_version }}"
-          DEFAULT_VERSION="${{ needs.prepare.outputs.default_version }}"
+          WAZUH_VERSION="${{ matrix.config.version }}"
+          CHART_VERSION="${{ matrix.config.chart_version }}"
+          CHART_PATH="charts/${CHART_VERSION}"
+
+          echo "chart_path=${CHART_PATH}" >> $GITHUB_OUTPUT
 
           # Update image tag in values.yaml
-          sed -i "s/tag: \"[0-9]*\.[0-9]*\.[0-9]*\"/tag: \"${WAZUH_VERSION}\"/" ${{ env.HELM_CHART_PATH }}/values.yaml
+          sed -i "s/tag: \"[0-9]*\.[0-9]*\.[0-9]*\"/tag: \"${WAZUH_VERSION}\"/" ${CHART_PATH}/values.yaml
 
-          # Update appVersion in Chart.yaml
-          sed -i "s/^appVersion:.*/appVersion: \"${WAZUH_VERSION}\"/" ${{ env.HELM_CHART_PATH }}/Chart.yaml
+          # Update version and appVersion in Chart.yaml
+          sed -i "s/^version:.*/version: ${WAZUH_VERSION}/" ${CHART_PATH}/Chart.yaml
+          sed -i "s/^appVersion:.*/appVersion: \"${WAZUH_VERSION}\"/" ${CHART_PATH}/Chart.yaml
 
-          # Determine OCI tag - always use pattern: <chart_version>-wazuh<wazuh_version>
-          OCI_TAG="${CHART_VERSION}-wazuh${WAZUH_VERSION}"
-
-          # Update chart version in Chart.yaml (includes wazuh version suffix for OCI tag)
-          sed -i "s/^version:.*/version: ${OCI_TAG}/" ${{ env.HELM_CHART_PATH }}/Chart.yaml
-
-          echo "oci_tag=${OCI_TAG}" >> $GITHUB_OUTPUT
-          echo "is_default=$( [ "${WAZUH_VERSION}" == "${DEFAULT_VERSION}" ] && echo true || echo false )" >> $GITHUB_OUTPUT
-
-          echo "=== Chart Configuration ==="
-          echo "Chart Version: ${CHART_VERSION}"
-          echo "Wazuh Version: ${WAZUH_VERSION}"
-          echo "OCI Tag: ${OCI_TAG}"
-          echo "Is Default: $( [ "${WAZUH_VERSION}" == "${DEFAULT_VERSION}" ] && echo true || echo false )"
+          echo "=== Chart configuration ==="
+          echo "Wazuh version: ${WAZUH_VERSION}"
+          echo "Chart folder: ${CHART_PATH}"
           echo ""
           echo "=== values.yaml (image section) ==="
-          grep -A2 "^image:" ${{ env.HELM_CHART_PATH }}/values.yaml
+          grep -A2 "^image:" ${CHART_PATH}/values.yaml
           echo ""
           echo "=== Chart.yaml ==="
-          head -5 ${{ env.HELM_CHART_PATH }}/Chart.yaml
+          head -5 ${CHART_PATH}/Chart.yaml
 
       - name: Lint Helm chart
         run: |
-          helm lint ${{ env.HELM_CHART_PATH }}
+          helm lint ${{ steps.prepare_chart.outputs.chart_path }}
 
       - name: Package Helm chart
         run: |
-          OCI_TAG="${{ steps.prepare_chart.outputs.oci_tag }}"
-          helm package ${{ env.HELM_CHART_PATH }} --version "${OCI_TAG}"
+          helm package ${{ steps.prepare_chart.outputs.chart_path }}
 
       - name: Push Helm chart to OCI registry
         run: |
-          OCI_TAG="${{ steps.prepare_chart.outputs.oci_tag }}"
-          CHART_FILE="wazuh-agent-${OCI_TAG}.tgz"
+          WAZUH_VERSION="${{ matrix.config.version }}"
+          CHART_FILE="wazuh-agent-${WAZUH_VERSION}.tgz"
 
-          # Push with specific tag
           helm push "${CHART_FILE}" oci://${{ env.REGISTRY }}/${{ needs.prepare.outputs.owner_lower }}/charts
 
-          echo "Pushed: oci://${{ env.REGISTRY }}/${{ needs.prepare.outputs.owner_lower }}/charts/wazuh-agent:${OCI_TAG}"
+          echo "Pushed: oci://${{ env.REGISTRY }}/${{ needs.prepare.outputs.owner_lower }}/charts/wazuh-agent:${WAZUH_VERSION}"
 
       - name: Upload chart artifact
         uses: actions/upload-artifact@v4
         with:
-          name: chart-wazuh-${{ matrix.wazuh_version }}
+          name: chart-wazuh-${{ matrix.config.version }}
           path: wazuh-agent-*.tgz
           retention-days: 5
 
@@ -199,29 +166,28 @@ jobs:
       - name: Download all chart artifacts
         uses: actions/download-artifact@v4
         with:
-          path: charts
+          path: artifacts
           pattern: chart-wazuh-*
           merge-multiple: true
 
       - name: Generate release notes
         id: release_notes
         run: |
-          CHART_VERSION="${{ needs.prepare.outputs.chart_version }}"
-          WAZUH_VERSIONS='${{ needs.prepare.outputs.wazuh_versions }}'
           DEFAULT_VERSION="${{ needs.prepare.outputs.default_version }}"
+          MATRIX='${{ needs.prepare.outputs.matrix }}'
 
-          PREVIOUS_TAG=$(git tag -l --sort=-version:refname | grep -v "^v\?${CHART_VERSION}$" | head -n 1)
+          PREVIOUS_TAG=$(git tag -l --sort=-version:refname | head -n 1)
 
           cat << EOF > release_notes.md
-          ## Wazuh Agent Helm Chart v${CHART_VERSION}
+          ## Wazuh Agent Helm Chart
 
-          ### Supported Wazuh Versions
+          ### Supported Wazuh versions
 
           This release supports the following Wazuh agent versions:
 
           EOF
 
-          echo "${WAZUH_VERSIONS}" | jq -r '.[]' | while read version; do
+          echo "${MATRIX}" | jq -r '.[].version' | while read version; do
             if [ "$version" == "$DEFAULT_VERSION" ]; then
               echo "- **${version}** (default)" >> release_notes.md
             else
@@ -233,36 +199,24 @@ jobs:
 
           ### Installation
 
-          **Install with specific Wazuh version:**
           \`\`\`bash
           helm install wazuh-agent oci://${{ env.REGISTRY }}/${{ needs.prepare.outputs.owner_lower }}/charts/wazuh-agent \\
-            --version ${CHART_VERSION}-wazuh${DEFAULT_VERSION} \\
+            --version ${DEFAULT_VERSION} \\
             --namespace wazuh \\
             --create-namespace \\
             --set manager.address=<WAZUH_MANAGER_IP> \\
             --set registration.password=<PASSWORD>
           \`\`\`
 
-          **Override Wazuh version at install time:**
-          \`\`\`bash
-          helm install wazuh-agent oci://${{ env.REGISTRY }}/${{ needs.prepare.outputs.owner_lower }}/charts/wazuh-agent \\
-            --version ${CHART_VERSION}-wazuh4.14.2 \\
-            --set image.tag=4.13.4 \\
-            --namespace wazuh \\
-            --create-namespace \\
-            --set manager.address=<WAZUH_MANAGER_IP> \\
-            --set registration.password=<PASSWORD>
-          \`\`\`
-
-          ### What's Changed
+          ### What's changed
           EOF
 
           if [ -n "$PREVIOUS_TAG" ]; then
             echo "" >> release_notes.md
-            git log --pretty=format:"- %s (%h)" ${PREVIOUS_TAG}..HEAD --no-merges -- charts/v1/ | head -20 >> release_notes.md
+            git log --pretty=format:"- %s (%h)" ${PREVIOUS_TAG}..HEAD --no-merges -- charts/ | head -20 >> release_notes.md
             echo "" >> release_notes.md
             echo "" >> release_notes.md
-            echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/${PREVIOUS_TAG}...v${CHART_VERSION}" >> release_notes.md
+            echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/${PREVIOUS_TAG}...${DEFAULT_VERSION}" >> release_notes.md
           else
             echo "Initial release" >> release_notes.md
           fi
@@ -272,13 +226,13 @@ jobs:
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ needs.prepare.outputs.chart_version }}
-          name: Release ${{ needs.prepare.outputs.chart_version }}
+          tag_name: ${{ needs.prepare.outputs.default_version }}
+          name: Wazuh agent ${{ needs.prepare.outputs.default_version }}
           body_path: release_notes.md
           draft: false
-          prerelease: ${{ contains(needs.prepare.outputs.chart_version, '-') }}
+          prerelease: false
           files: |
-            charts/*.tgz
+            artifacts/*.tgz
           token: ${{ secrets.GITHUB_TOKEN }}
 
   summary:
@@ -290,43 +244,38 @@ jobs:
       - name: Generate summary
         run: |
           cat << EOF >> $GITHUB_STEP_SUMMARY
-          ## Release Summary
+          ## Release summary
 
-          ### Chart Version: ${{ needs.prepare.outputs.chart_version }}
-
-          ### Published Wazuh Versions
-          | Wazuh Version | OCI Tag | Status |
-          |---------------|---------|--------|
+          ### Published versions
+          | Wazuh version | Chart | OCI tag | Status |
+          |---------------|-------|---------|--------|
           EOF
 
-          WAZUH_VERSIONS='${{ needs.prepare.outputs.wazuh_versions }}'
+          MATRIX='${{ needs.prepare.outputs.matrix }}'
           DEFAULT_VERSION="${{ needs.prepare.outputs.default_version }}"
-          CHART_VERSION="${{ needs.prepare.outputs.chart_version }}"
 
-          echo "${WAZUH_VERSIONS}" | jq -r '.[]' | while read version; do
-            TAG="${CHART_VERSION}-wazuh${version}"
+          echo "${MATRIX}" | jq -r '.[] | "\(.version)|\(.chart_version)"' | while IFS='|' read version chart_version; do
             if [ "$version" == "$DEFAULT_VERSION" ]; then
               VERSION_LABEL="${version} (default)"
             else
               VERSION_LABEL="${version}"
             fi
-            echo "| ${VERSION_LABEL} | \`${TAG}\` | :white_check_mark: |" >> $GITHUB_STEP_SUMMARY
+            echo "| ${VERSION_LABEL} | ${chart_version} | \`${version}\` | :white_check_mark: |" >> $GITHUB_STEP_SUMMARY
           done
 
           cat << EOF >> $GITHUB_STEP_SUMMARY
 
-          ### Installation Commands
+          ### Installation
 
-          **Install with specific Wazuh version:**
           \`\`\`bash
-          helm install wazuh-agent oci://${{ env.REGISTRY }}/${{ needs.prepare.outputs.owner_lower }}/charts/wazuh-agent --version ${{ needs.prepare.outputs.chart_version }}-wazuh${DEFAULT_VERSION}
+          helm install wazuh-agent oci://${{ env.REGISTRY }}/${{ needs.prepare.outputs.owner_lower }}/charts/wazuh-agent --version ${DEFAULT_VERSION}
           \`\`\`
 
-          **Available chart versions:**
+          ### Available versions
           EOF
 
-          echo "${WAZUH_VERSIONS}" | jq -r '.[]' | while read version; do
-            echo "- \`${{ needs.prepare.outputs.chart_version }}-wazuh${version}\`" >> $GITHUB_STEP_SUMMARY
+          echo "${MATRIX}" | jq -r '.[].version' | while read version; do
+            echo "- \`${version}\`" >> $GITHUB_STEP_SUMMARY
           done
 
   cleanup:
@@ -345,7 +294,6 @@ jobs:
             console.log(`Fetching package versions for ${owner}/${packageName}...`);
 
             try {
-              // List all versions of the package
               const versions = await github.rest.packages.getAllPackageVersionsForPackageOwnedByUser({
                 package_type: 'container',
                 package_name: packageName,
@@ -360,7 +308,6 @@ jobs:
               for (const version of versions.data) {
                 const tags = version.metadata?.container?.tags || [];
 
-                // If no tags, this is an orphaned image (only has SHA)
                 if (tags.length === 0) {
                   console.log(`Deleting untagged version: ${version.id} (${version.name})`);
 
@@ -384,7 +331,6 @@ jobs:
               console.log(`Cleanup complete. Deleted ${deletedCount} untagged versions.`);
 
             } catch (error) {
-              // Try organization API if user API fails
               console.log('User API failed, trying organization API...');
 
               try {

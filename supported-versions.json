@@ -5,50 +5,55 @@
   "versions": [
     {
       "version": "4.14.2",
+      "chart_version": "v1",
       "supported": true,
       "default": true,
       "notes": "Latest stable release"
     },
     {
       "version": "4.14.1",
+      "chart_version": "v1",
       "supported": true,
       "default": false
     },
     {
       "version": "4.14.0",
+      "chart_version": "v1",
       "supported": true,
       "default": false
     },
     {
       "version": "4.13.4",
+      "chart_version": "v1",
       "supported": true,
       "default": false
     },
     {
       "version": "4.13.3",
+      "chart_version": "v1",
       "supported": true,
       "default": false
     },
     {
       "version": "4.13.2",
+      "chart_version": "v1",
       "supported": true,
       "default": false
     },
     {
       "version": "4.13.1",
+      "chart_version": "v1",
       "supported": true,
       "default": false
     },
     {
       "version": "4.13.0",
+      "chart_version": "v1",
       "supported": true,
       "default": false,
       "notes": "Minimum supported version"
     }
   ],
-  "excluded_versions": [
-    "4.12.0",
-    "4.11.0"
-  ],
+  "excluded_versions": [],
   "last_sync": null
 }
