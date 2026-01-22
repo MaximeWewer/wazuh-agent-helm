@@ -4,17 +4,11 @@
   "default_version": "4.14.2",
   "versions": [
     {
-      "version": "4.14.2",
+      "version": "4.14.1",
       "chart_version": "v1",
       "supported": true,
       "default": true,
       "notes": "Latest stable release"
-    },
-    {
-      "version": "4.14.1",
-      "chart_version": "v1",
-      "supported": true,
-      "default": false
     },
     {
       "version": "4.14.0",
