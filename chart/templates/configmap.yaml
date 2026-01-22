@@ -36,8 +36,8 @@ data:
         <log_format>plain</log_format>
       </logging>
 
-      {{- if .Values.extraLocalfiles }}
-{{ .Values.extraLocalfiles | indent 6 }}
+      {{- if .Values.extraOssecConf }}
+{{ .Values.extraOssecConf | indent 6 }}
       {{- end }}
       
     </ossec_config>

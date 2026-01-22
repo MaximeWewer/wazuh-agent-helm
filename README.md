@@ -24,7 +24,7 @@ This Helm chart deploys Wazuh agents across all nodes in your Kubernetes cluster
 ### Install from OCI Registry
 
 ```bash
-helm install wazuh-agent oci://ghcr.io/MaximeWewer/charts/wazuh-agent \
+helm install wazuh-agent oci://ghcr.io/maximewewer/charts/wazuh-agent \
   --namespace wazuh \
   --create-namespace \
   --set manager.address=<WAZUH_MANAGER_IP> \
@@ -34,7 +34,7 @@ helm install wazuh-agent oci://ghcr.io/MaximeWewer/charts/wazuh-agent \
 ### Install from Source
 
 ```bash
-git clone https://github.com/MaximeWewer/wazuh-agent-helm.git
+git clone https://github.com/maximewewer/wazuh-agent-helm.git
 cd wazuh-agent-helm
 
 helm install wazuh-agent ./chart \

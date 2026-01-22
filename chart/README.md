@@ -19,7 +19,7 @@ The chart uses a DaemonSet to ensure every node (including control-plane nodes) 
 ### Install from OCI Registry
 
 ```bash
-helm install wazuh-agent oci://ghcr.io/MaximeWewer/charts/wazuh-agent \
+helm install wazuh-agent oci://ghcr.io/maximewewer/charts/wazuh-agent \
   --namespace wazuh \
   --create-namespace \
   --set manager.address=<WAZUH_MANAGER_IP> \
@@ -29,7 +29,7 @@ helm install wazuh-agent oci://ghcr.io/MaximeWewer/charts/wazuh-agent \
 ### Install from Source
 
 ```bash
-git clone https://github.com/MaximeWewer/wazuh-agent-helm.git
+git clone https://github.com/maximewewer/wazuh-agent-helm.git
 cd wazuh-agent-helm
 
 helm install wazuh-agent ./chart \
@@ -68,19 +68,20 @@ helm install wazuh-agent ./chart \
 
 ### Agent Configuration
 
-| Parameter                   | Description                                       | Default                           |
-| --------------------------- | ------------------------------------------------- | --------------------------------- |
-| `agentNamePrefix`           | Prefix for agent name (combined with node name)   | `k8s`                             |
-| `localInternalOptions`      | Base content for local_internal_options.conf      | `wazuh_command.remote_commands=1` |
-| `extraLocalfiles`           | Additional localfile entries for ossec.conf (XML) | `""`                              |
-| `extraLocalInternalOptions` | Additional local_internal_options.conf entries    | `""`                              |
+| Parameter                   | Description                                             | Default                           |
+| --------------------------- | ------------------------------------------------------- | --------------------------------- |
+| `agentNamePrefix`           | Prefix for agent name (combined with node name)         | `k8s`                             |
+| `localInternalOptions`      | Base content for local_internal_options.conf            | `wazuh_command.remote_commands=1` |
+| `extraOssecConf`            | Additional ossec.conf entries (raw XML)                 | `""`                              |
+| `extraLocalInternalOptions` | Additional local_internal_options.conf entries          | `""`                              |
+| `activeResponseScripts`     | Custom active response scripts (map of name -> content) | `{}`                              |
 
 ### Image Configuration
 
 | Parameter              | Description                  | Default             |
 | ---------------------- | ---------------------------- | ------------------- |
 | `image.repository`     | Wazuh agent image repository | `wazuh/wazuh-agent` |
-| `image.tag`            | Image tag                    | `4.14.0`            |
+| `image.tag`            | Image tag                    | `4.14.2`            |
 | `image.pullPolicy`     | Image pull policy            | `IfNotPresent`      |
 | `initImage.repository` | Init container image         | `busybox`           |
 | `initImage.tag`        | Init container image tag     | `1.37`              |
@@ -129,14 +130,32 @@ helm install wazuh-agent ./chart \
 | `serviceAccount.annotations` | Service account annotations | `{}`    |
 | `rbac.create`                | Create RBAC resources       | `true`  |
 
-### Volumes
+### Persistence
 
-> **Important:** A volume named `wazuh-agent-data` mounted at `/var/ossec` is required for the init containers to work properly.
+Each Wazuh data directory can be configured independently with its own volume type. Binaries (`bin`, `lib`, `ruleset`, `wodles`) come from the image and don't need persistence.
 
-| Parameter      | Description                           | Default                          |
-| -------------- | ------------------------------------- | -------------------------------- |
-| `volumeMounts` | Volume mounts for the agent container | wazuh-agent-data at /var/ossec   |
-| `volumes`      | Volume definitions                    | hostPath at /var/lib/wazuh-agent |
+Supported volume types: `hostPath`, `emptyDir`, `pvc`
+
+| Parameter                                  | Description                            | Default                                |
+| ------------------------------------------ | -------------------------------------- | -------------------------------------- |
+| `persistence.etc.enabled`                  | Enable persistence for /var/ossec/etc  | `true`                                 |
+| `persistence.etc.type`                     | Volume type                            | `hostPath`                             |
+| `persistence.etc.hostPath.path`            | Host path                              | `/var/lib/wazuh-agent/etc`             |
+| `persistence.logs.enabled`                 | Enable persistence for logs            | `true`                                 |
+| `persistence.logs.type`                    | Volume type                            | `hostPath`                             |
+| `persistence.logs.hostPath.path`           | Host path                              | `/var/lib/wazuh-agent/logs`            |
+| `persistence.queue.enabled`                | Enable persistence for queue           | `false`                                |
+| `persistence.var.enabled`                  | Enable persistence for var             | `false`                                |
+| `persistence.activeResponse.enabled`       | Enable persistence for active-response | `false`                                |
+
+### Extra Volumes
+
+For mounting additional host paths (e.g., host logs to monitor):
+
+| Parameter           | Description                        | Default |
+| ------------------- | ---------------------------------- | ------- |
+| `extraVolumeMounts` | Additional volume mounts for agent | `[]`    |
+| `extraVolumes`      | Additional volume definitions      | `[]`    |
 
 ### Optional Features
 
@@ -152,7 +171,6 @@ helm install wazuh-agent ./chart \
 ### Basic Deployment
 
 ```yaml
-# values.yaml
 manager:
   address: "192.168.1.100"
 
@@ -184,24 +202,18 @@ manager:
 registration:
   password: "my-secure-password"
 
-volumeMounts:
-  - name: wazuh-agent-data
-    mountPath: /var/ossec
+extraVolumeMounts:
   - name: host-logs
     mountPath: /host/var/log
     readOnly: true
 
-volumes:
-  - name: wazuh-agent-data
-    hostPath:
-      path: /var/lib/wazuh-agent
-      type: DirectoryOrCreate
+extraVolumes:
   - name: host-logs
     hostPath:
       path: /var/log
       type: Directory
 
-extraLocalfiles: |
+extraOssecConf: |
   <localfile>
     <log_format>syslog</log_format>
     <location>/host/var/log/syslog</location>
@@ -212,7 +224,30 @@ extraLocalfiles: |
   </localfile>
 ```
 
-### Kubernetes Audit Logs
+### Custom Active Response Scripts
+
+```yaml
+manager:
+  address: "192.168.1.100"
+
+registration:
+  password: "my-secure-password"
+
+activeResponseScripts:
+  log-hostname.sh: |
+    #!/bin/bash
+    echo "Hostname: $(hostname)" >> /var/ossec/logs/active-responses.log
+
+  notify-slack.sh: |
+    #!/bin/bash
+    curl -X POST -H 'Content-type: application/json' \
+      --data '{"text":"Alert from Wazuh agent"}' \
+      https://hooks.slack.com/services/xxx
+```
+
+Scripts are automatically installed to `/var/ossec/active-response/bin/` with proper permissions (750, wazuh:wazuh).
+
+### Kubernetes audit logs
 
 See `examples/values-auditlog.yaml` for monitoring Kubernetes audit logs on control-plane nodes.
 
@@ -224,21 +259,26 @@ helm install wazuh-audit ./chart \
   --set registration.password=my-secure-password
 ```
 
-### Using emptyDir (No Persistence)
+### Using PVC for persistence
 
 ```yaml
-volumes:
-  - name: wazuh-agent-data
-    emptyDir: {}
-```
-
-### Using PVC
-
-```yaml
-volumes:
-  - name: wazuh-agent-data
-    persistentVolumeClaim:
-      claimName: wazuh-agent-pvc
+persistence:
+  etc:
+    enabled: true
+    type: pvc
+    pvc:
+      storageClass: "standard"
+      accessModes:
+        - ReadWriteOnce
+      size: 100Mi
+  logs:
+    enabled: true
+    type: pvc
+    pvc:
+      storageClass: "standard"
+      accessModes:
+        - ReadWriteOnce
+      size: 500Mi
 ```
 
 ## Architecture
@@ -249,6 +289,7 @@ The chart deploys the following resources:
 | ------------------- | ------------------------------------------------------- |
 | DaemonSet           | Runs a Wazuh agent pod on each node                     |
 | ConfigMap           | Contains `ossec.conf` and `local_internal_options.conf` |
+| ConfigMap (scripts) | Contains custom active response scripts (if defined)    |
 | Secret              | Stores the registration password (`authd.pass`)         |
 | ServiceAccount      | Pod identity                                            |
 | Role/RoleBinding    | RBAC permissions                                        |
@@ -257,7 +298,7 @@ The chart deploys the following resources:
 
 ### Init Containers
 
-The pod includes 6 init containers that run in sequence:
+The pod includes init containers that run in sequence:
 
 1. `cleanup-stale-files` - Removes stale PID and lock files
 2. `seed-ossec-tree` - Seeds the ossec directory structure on first run
@@ -265,6 +306,7 @@ The pod includes 6 init containers that run in sequence:
 4. `write-ossec-config` - Writes and customizes ossec.conf
 5. `copy-local-options` - Copies local_internal_options.conf
 6. `copy-authd-pass` - Copies the registration password
+7. `copy-active-response-scripts` - Installs custom scripts (if defined)
 
 ## Upgrading
 
@@ -308,10 +350,17 @@ kubectl exec -n wazuh -it <pod-name> -c wazuh-agent -- /var/ossec/bin/ossec-cont
 kubectl exec -n wazuh -it <pod-name> -c wazuh-agent -- cat /var/ossec/etc/ossec.conf
 ```
 
+### List active response scripts
+
+```bash
+kubectl exec -n wazuh -it <pod-name> -c wazuh-agent -- ls -la /var/ossec/active-response/bin/
+```
+
 ### Common Issues
 
-| Issue                  | Solution                                                |
-| ---------------------- | ------------------------------------------------------- |
-| Agent not connecting   | Verify `manager.address` is correct and reachable       |
-| Registration failed    | Check registration password and port (1515)             |
-| Init container failing | Ensure `wazuh-agent-data` volume is properly configured |
+| Issue                  | Solution                                                         |
+| ---------------------- | ---------------------------------------------------------------- |
+| Agent not connecting   | Verify `manager.address` is correct and reachable                |
+| Registration failed    | Check registration password and port (1515)                      |
+| Volumes not persisted  | Check `persistence.*` configuration and host paths               |
+| Scripts not executable | Scripts from `activeResponseScripts` get 750 permissions automatically |

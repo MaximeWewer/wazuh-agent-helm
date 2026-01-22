@@ -32,9 +32,25 @@ tolerations:
   - key: node-role.kubernetes.io/master
     effect: NoSchedule
 
-volumeMounts:
-  - name: wazuh-agent-data
-    mountPath: /var/ossec
+# Persistence configuration for Wazuh data
+persistence:
+  etc:
+    enabled: true
+    type: pvc
+    pvc:
+      storageClass: "" # Empty for default storage class
+      accessModes:
+        - ReadWriteOnce
+      size: 100Mi
+  logs:
+    enabled: true
+    type: hostPath
+    hostPath:
+      path: /var/lib/wazuh-agent/logs
+      type: DirectoryOrCreate
+
+# Mount host logs for monitoring
+extraVolumeMounts:
   - name: k8s-audit-logs
     mountPath: /host/var/log/kubernetes
     readOnly: true
@@ -42,11 +58,7 @@ volumeMounts:
     mountPath: /host/var/log/pods
     readOnly: true
 
-volumes:
-  - name: wazuh-agent-data
-    hostPath:
-      path: /var/lib/wazuh-agent-audit
-      type: DirectoryOrCreate
+extraVolumes:
   - name: k8s-audit-logs
     hostPath:
       path: /var/log/kubernetes
@@ -56,7 +68,7 @@ volumes:
       path: /var/log/pods
       type: DirectoryOrCreate
 
-extraLocalfiles: |
+extraOssecConf: |
   <!-- Kubernetes audit logs -->
   <localfile>
     <log_format>json</log_format>

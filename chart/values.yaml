@@ -92,12 +92,57 @@ podLabels: {}
 # -- Additional pod annotations
 podAnnotations: {}
 
-# -- Volume mounts for the wazuh-agent container
-# IMPORTANT: A volume named "wazuh-agent-data" mounted at /var/ossec is required
-# for the init containers to work properly. You can use hostPath, emptyDir, or PVC.
-volumeMounts:
-  - name: wazuh-agent-data
-    mountPath: /var/ossec
+# -- Persistence configuration for Wazuh agent data
+# Each path can be configured independently with its own volume type.
+# Binaries (bin, lib, ruleset, wodles) come from the image and don't need persistence.
+# Supported types: hostPath, emptyDir, pvc
+persistence:
+  # -- Configuration files (/var/ossec/etc)
+  # Contains: ossec.conf, client.keys (agent registration), internal_options.conf
+  etc:
+    enabled: false
+    # -- Volume type: hostPath, emptyDir, or pvc
+    # type: hostPath
+    # hostPath:
+    #  path: /var/lib/wazuh-agent/etc
+    #  type: DirectoryOrCreate
+
+    # -- emptyDir configuration
+    # type: emptyDir
+    # emptyDir:
+    #   medium: ""        # "" or "Memory"
+    #   sizeLimit: 100Mi
+
+    # -- PVC configuration
+    # type: pvc
+    # pvc:
+    #   storageClass: ""  # Empty for default storage class
+    #   accessModes:
+    #     - ReadWriteOnce
+    #   size: 100Mi
+
+  # -- Agent logs (/var/ossec/logs)
+  # Contains: ossec.log, active-responses.log
+  logs:
+    enabled: false
+
+  # -- Message queues (/var/ossec/queue)
+  # Contains: alerts, sockets, fim data, syscollector data
+  queue:
+    enabled: false
+
+  # -- Runtime data (/var/ossec/var)
+  # Contains: pid files, run state. Usually doesn't need persistence.
+  var:
+    enabled: false
+
+  # -- Active response scripts and logs (/var/ossec/active-response)
+  # Contains: active response scripts and execution logs
+  activeResponse:
+    enabled: false
+
+# -- Extra volume mounts for the wazuh-agent container (host logs, etc.)
+extraVolumeMounts: []
   # - name: host-logs
   #   mountPath: /host/var/log
   #   readOnly: true
@@ -105,13 +150,8 @@ volumeMounts:
   #   mountPath: /host/var/lib/docker/containers
   #   readOnly: true
 
-# -- Volumes definition (user controls types and paths)
-# IMPORTANT: A volume named "wazuh-agent-data" is required for the init containers.
-volumes:
-  - name: wazuh-agent-data
-    hostPath:
-      path: /var/lib/wazuh-agent
-      type: DirectoryOrCreate
+# -- Extra volumes definition
+extraVolumes: []
   # - name: host-logs
   #   hostPath:
   #     path: /var/log
@@ -125,11 +165,20 @@ volumes:
 localInternalOptions: |
   wazuh_command.remote_commands=1
 
-# -- Additional localfile entries for ossec.conf (raw XML)
-extraLocalfiles: ""
+# -- Additional ossec.conf entries (raw XML, inserted before closing </ossec_config>)
+extraOssecConf: ""
 
 # -- Additional local_internal_options.conf entries
 extraLocalInternalOptions: ""
+
+# -- Custom active response scripts
+# Scripts will be copied to /var/ossec/active-response/bin/ with proper permissions (755, wazuh:wazuh)
+# Example:
+#   activeResponseScripts:
+#     log-hostname.sh: |
+#       #!/bin/bash
+#       echo "Hostname: $(hostname)" >> /var/ossec/logs/active-responses.log
+activeResponseScripts: {}
 
 # -- ServiceAccount configuration
 serviceAccount:

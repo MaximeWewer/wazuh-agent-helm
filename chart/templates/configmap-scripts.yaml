@@ -1,0 +1,14 @@
+{{- if .Values.activeResponseScripts }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "wazuh-agent.fullname" . }}-scripts
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "wazuh-agent.labels" . | nindent 4 }}
+data:
+  {{- range $name, $content := .Values.activeResponseScripts }}
+  {{ $name }}: |
+    {{- $content | nindent 4 }}
+  {{- end }}
+{{- end }}
