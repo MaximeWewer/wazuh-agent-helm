@@ -7,7 +7,7 @@
       "version": "4.14.1",
       "chart_version": "v1",
       "supported": true,
-      "default": false
+      "default": true
     },
     {
       "version": "4.14.0",
