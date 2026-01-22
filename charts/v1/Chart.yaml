@@ -1,9 +1,9 @@
 apiVersion: v2
 name: wazuh-agent
-description: A Helm chart for deploying Wazuh agents on Kubernetes
+description: A Helm chart for deploying Wazuh agents on Kubernetes as a DaemonSet.
 type: application
-version: 4.14.2
-appVersion: "4.14.2"
+version: 0.0.0
+appVersion: "0.0.0"
 keywords:
   - wazuh
   - security
@@ -15,6 +15,6 @@ sources:
   - https://github.com/wazuh/wazuh
   - https://github.com/MaximeWewer/wazuh-agent-helm
 maintainers:
-  - name: Wazuh
-    url: https://wazuh.com
+  - name: Maxime Wewer
+    url: https://github.com/MaximeWewer/
 kubeVersion: ">=1.20.0-0"

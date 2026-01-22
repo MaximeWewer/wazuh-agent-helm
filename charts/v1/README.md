@@ -361,9 +361,9 @@ kubectl exec -n wazuh -it <pod-name> -c wazuh-agent -- ls -la /var/ossec/active-
 
 ### Common Issues
 
-| Issue                  | Solution                                                         |
-| ---------------------- | ---------------------------------------------------------------- |
-| Agent not connecting   | Verify `manager.address` is correct and reachable                |
-| Registration failed    | Check registration password and port (1515)                      |
-| Volumes not persisted  | Check `persistence.*` configuration and host paths               |
+| Issue                  | Solution                                                               |
+| ---------------------- | ---------------------------------------------------------------------- |
+| Agent not connecting   | Verify `manager.address` is correct and reachable                      |
+| Registration failed    | Check registration password and port (1515)                            |
+| Volumes not persisted  | Check `persistence.*` configuration and host paths                     |
 | Scripts not executable | Scripts from `activeResponseScripts` get 750 permissions automatically |
