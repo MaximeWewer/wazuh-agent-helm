@@ -2,16 +2,10 @@ name: Release Helm chart
 
 on:
   push:
-    tags:
-      - '*.*.*'
-    paths:
-      - 'charts/**'
-      - 'supported-versions.json'
-  pull_request:
-    types: [closed]
     branches: [main]
     paths:
       - 'charts/**'
+      - 'supported-versions.json'
   workflow_dispatch:
     inputs:
       publish_all_versions:
@@ -36,7 +30,6 @@ jobs:
   prepare:
     name: Prepare release
     runs-on: ubuntu-latest
-    if: github.event_name != 'pull_request' || github.event.pull_request.merged == true
     outputs:
       matrix: ${{ steps.versions.outputs.matrix }}
       default_version: ${{ steps.versions.outputs.default }}

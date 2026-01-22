@@ -25,15 +25,20 @@ on:
         required: false
         type: string
         default: 'v1'
-      create_release:
-        description: 'Create a release after update'
+      auto_release:
+        description: 'Automatically trigger release after update'
         required: false
-        type: boolean
-        default: false
+        type: choice
+        options:
+          - 'none'
+          - 'pr'
+          - 'direct'
+        default: 'none'
 
 permissions:
   contents: write
   pull-requests: write
+  actions: write
 
 env:
   VERSIONS_FILE: supported-versions.json
@@ -295,7 +300,8 @@ jobs:
           echo "new_version=${{ steps.new_default.outputs.new_default }}" >> $GITHUB_OUTPUT
 
       - name: Create pull request
-        if: steps.update_chart.outputs.updated == 'true' && github.event.inputs.create_release != 'true'
+        id: create_pr
+        if: steps.update_chart.outputs.updated == 'true' && github.event.inputs.auto_release != 'direct'
         uses: peter-evans/create-pull-request@v6
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -327,8 +333,15 @@ jobs:
             dependencies
             automated
 
-      - name: Commit and tag for direct release
-        if: steps.update_chart.outputs.updated == 'true' && github.event.inputs.create_release == 'true'
+      - name: Enable PR auto-merge
+        if: steps.create_pr.outputs.pull-request-number && (github.event_name == 'schedule' || github.event.inputs.auto_release == 'pr')
+        run: |
+          gh pr merge ${{ steps.create_pr.outputs.pull-request-number }} --auto --squash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Commit for direct release
+        if: steps.update_chart.outputs.updated == 'true' && github.event.inputs.auto_release == 'direct'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -337,9 +350,13 @@ jobs:
           git commit -m "chore: update Wazuh agent to ${{ steps.new_default.outputs.new_default }}"
           git push
 
-          # Create and push tag to trigger release workflow
-          git tag "${{ steps.new_default.outputs.new_default }}"
-          git push origin "${{ steps.new_default.outputs.new_default }}"
+      - name: Trigger release workflow
+        if: steps.update_chart.outputs.updated == 'true' && github.event.inputs.auto_release == 'direct'
+        run: |
+          gh workflow run release-helm.yml \
+            -f publish_all_versions=true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Summary
         run: |
@@ -347,12 +364,14 @@ jobs:
           ## Wazuh version management results
 
           **Action:** ${{ github.event.inputs.action || 'sync' }}
+          **Auto release:** ${{ github.event_name == 'schedule' && 'pr' || github.event.inputs.auto_release || 'none' }}
 
           ### Configuration
           | Item | Value |
           |------|-------|
           | Default version | ${{ steps.new_default.outputs.new_default }} |
           | Chart updated | ${{ steps.update_chart.outputs.updated || 'false' }} |
+          | PR created | ${{ steps.create_pr.outputs.pull-request-number || 'N/A' }} |
 
           ### Supported versions
           ```json
@@ -361,7 +380,3 @@ jobs:
           echo '```' >> $GITHUB_STEP_SUMMARY
 
           cat << 'EOF' >> $GITHUB_STEP_SUMMARY
-
-          ### Available upstream versions
-          EOF
-          echo '${{ steps.wazuh_versions.outputs.versions_json }}' | jq '.' >> $GITHUB_STEP_SUMMARY
