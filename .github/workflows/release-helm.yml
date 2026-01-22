@@ -61,8 +61,8 @@ jobs:
           echo "default=${DEFAULT_VERSION}" >> $GITHUB_OUTPUT
 
           if [ "${{ github.event.inputs.publish_all_versions }}" == "true" ]; then
-            # All supported versions with their chart_version
-            MATRIX=$(jq -c '[.versions[] | select(.supported == true) | {version: .version, chart_version: .chart_version}]' ${{ env.VERSIONS_FILE }})
+            # All supported versions with their chart_version, sorted by semver descending
+            MATRIX=$(jq -c '[.versions[] | select(.supported == true) | {version: .version, chart_version: .chart_version}] | sort_by(.version | split(".") | map(tonumber)) | reverse' ${{ env.VERSIONS_FILE }})
             echo "Publishing all supported versions"
           elif [ -n "${{ github.event.inputs.wazuh_version }}" ]; then
             # Specific version - find its chart_version

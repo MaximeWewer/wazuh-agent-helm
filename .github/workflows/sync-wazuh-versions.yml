@@ -102,9 +102,22 @@ jobs:
           MIN_VERSION="${{ steps.config.outputs.min_version }}"
           UPSTREAM_VERSIONS='${{ steps.wazuh_versions.outputs.versions_json }}'
 
-          # Filter versions >= minimum version
+          # Filter versions >= minimum version using proper semver comparison
+          # Split versions into parts and compare numerically
           FILTERED_VERSIONS=$(echo "$UPSTREAM_VERSIONS" | jq -c --arg min "$MIN_VERSION" '
-            map(select(. >= $min)) | sort | reverse
+            def semver_parts: split(".") | map(tonumber);
+            def semver_gte($a; $b):
+              ($a | semver_parts) as $ap |
+              ($b | semver_parts) as $bp |
+              if $ap[0] > $bp[0] then true
+              elif $ap[0] < $bp[0] then false
+              elif $ap[1] > $bp[1] then true
+              elif $ap[1] < $bp[1] then false
+              else $ap[2] >= $bp[2]
+              end;
+            map(select(semver_gte(.; $min))) |
+            sort_by(split(".") | map(tonumber)) |
+            reverse
           ')
 
           echo "Filtered versions (>= $MIN_VERSION): $FILTERED_VERSIONS"
@@ -120,7 +133,9 @@ jobs:
               chart_version: (if (. | startswith("5.")) then "v2" else "v1" end),
               supported: true,
               default: (. == $latest)
-            })
+            }) |
+            sort_by(.version | split(".") | map(tonumber)) |
+            reverse
           ')
 
           # Update supported-versions.json
@@ -194,7 +209,7 @@ jobs:
 
           jq --arg v "$VERSION" --arg cv "$CHART_VERSION" '
             .versions = (.versions + [{version: $v, chart_version: $cv, supported: true, default: false}]) |
-            .versions = (.versions | sort_by(.version) | reverse)
+            .versions = (.versions | sort_by(.version | split(".") | map(tonumber)) | reverse)
           ' ${{ env.VERSIONS_FILE }} > tmp.json && mv tmp.json ${{ env.VERSIONS_FILE }}
 
           jq --arg v "$VERSION" '
