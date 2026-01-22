@@ -25,11 +25,14 @@ This Helm chart deploys Wazuh agents across all nodes in your Kubernetes cluster
 
 ```bash
 helm install wazuh-agent oci://ghcr.io/maximewewer/charts/wazuh-agent \
+  --version 1.0.0-wazuh4.14.2 \
   --namespace wazuh \
   --create-namespace \
   --set manager.address=<WAZUH_MANAGER_IP> \
   --set registration.password=<REGISTRATION_PASSWORD>
 ```
+
+> **Note:** Chart versions follow the pattern `<chart_version>-wazuh<wazuh_version>` (e.g., `1.0.0-wazuh4.14.2`).
 
 ### Install from Source
 
@@ -37,7 +40,7 @@ helm install wazuh-agent oci://ghcr.io/maximewewer/charts/wazuh-agent \
 git clone https://github.com/maximewewer/wazuh-agent-helm.git
 cd wazuh-agent-helm
 
-helm install wazuh-agent ./chart \
+helm install wazuh-agent ./charts/v1 \
   --namespace wazuh \
   --create-namespace \
   --set manager.address=<WAZUH_MANAGER_IP> \
@@ -46,13 +49,13 @@ helm install wazuh-agent ./chart \
 
 ## Documentation
 
-For detailed configuration options, examples, and troubleshooting, see the [chart documentation](./chart/README.md).
+For detailed configuration options, examples, and troubleshooting, see the [chart documentation](./charts/v1/README.md).
 
 ## Examples
 
-Example configurations are available in the [`chart/examples/`](./chart/examples/) directory:
+Example configurations are available in the [`charts/v1/examples/`](./charts/v1/examples/) directory:
 
-- **[values-auditlog.yaml](./chart/examples/values-auditlog.yaml)** - Monitor Kubernetes audit logs on control-plane nodes
+- **[values-auditlog.yaml](./charts/v1/examples/values-auditlog.yaml)** - Monitor Kubernetes audit logs on control-plane nodes
 
 ## Contributing
 

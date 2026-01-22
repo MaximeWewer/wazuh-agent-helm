@@ -20,11 +20,14 @@ The chart uses a DaemonSet to ensure every node (including control-plane nodes) 
 
 ```bash
 helm install wazuh-agent oci://ghcr.io/maximewewer/charts/wazuh-agent \
+  --version 1.0.0-wazuh4.14.2 \
   --namespace wazuh \
   --create-namespace \
   --set manager.address=<WAZUH_MANAGER_IP> \
   --set registration.password=<REGISTRATION_PASSWORD>
 ```
+
+> **Note:** Chart versions follow the pattern `<chart_version>-wazuh<wazuh_version>` (e.g., `1.0.0-wazuh4.14.2`).
 
 ### Install from Source
 
@@ -32,7 +35,7 @@ helm install wazuh-agent oci://ghcr.io/maximewewer/charts/wazuh-agent \
 git clone https://github.com/maximewewer/wazuh-agent-helm.git
 cd wazuh-agent-helm
 
-helm install wazuh-agent ./chart \
+helm install wazuh-agent ./charts/v1s/v1 \
   --namespace wazuh \
   --create-namespace \
   --set manager.address=<WAZUH_MANAGER_IP> \
@@ -187,7 +190,7 @@ kubectl create secret generic wazuh-authd \
   --from-literal=authd.pass='my-secure-password'
 
 # Install with existing secret
-helm install wazuh-agent ./chart \
+helm install wazuh-agent ./charts/v1 \
   --namespace wazuh \
   --set manager.address=192.168.1.100 \
   --set registration.existingSecret=wazuh-authd
@@ -252,7 +255,7 @@ Scripts are automatically installed to `/var/ossec/active-response/bin/` with pr
 See `examples/values-auditlog.yaml` for monitoring Kubernetes audit logs on control-plane nodes.
 
 ```bash
-helm install wazuh-audit ./chart \
+helm install wazuh-audit ./charts/v1 \
   --namespace wazuh \
   -f examples/values-auditlog.yaml \
   --set manager.address=192.168.1.100 \
@@ -311,7 +314,7 @@ The pod includes init containers that run in sequence:
 ## Upgrading
 
 ```bash
-helm upgrade wazuh-agent ./chart \
+helm upgrade wazuh-agent ./charts/v1 \
   --namespace wazuh \
   -f my-values.yaml
 ```

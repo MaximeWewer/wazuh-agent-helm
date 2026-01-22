@@ -1,0 +1,54 @@
+{
+  "description": "Supported Wazuh agent versions for this Helm chart",
+  "minimum_version": "4.13.0",
+  "default_version": "4.14.2",
+  "versions": [
+    {
+      "version": "4.14.2",
+      "supported": true,
+      "default": true,
+      "notes": "Latest stable release"
+    },
+    {
+      "version": "4.14.1",
+      "supported": true,
+      "default": false
+    },
+    {
+      "version": "4.14.0",
+      "supported": true,
+      "default": false
+    },
+    {
+      "version": "4.13.4",
+      "supported": true,
+      "default": false
+    },
+    {
+      "version": "4.13.3",
+      "supported": true,
+      "default": false
+    },
+    {
+      "version": "4.13.2",
+      "supported": true,
+      "default": false
+    },
+    {
+      "version": "4.13.1",
+      "supported": true,
+      "default": false
+    },
+    {
+      "version": "4.13.0",
+      "supported": true,
+      "default": false,
+      "notes": "Minimum supported version"
+    }
+  ],
+  "excluded_versions": [
+    "4.12.0",
+    "4.11.0"
+  ],
+  "last_sync": null
+}
