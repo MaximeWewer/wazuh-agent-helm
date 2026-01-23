@@ -27,7 +27,7 @@ agentNamePrefix: "k8s"
 # -- Container image configuration
 image:
   repository: wazuh/wazuh-agent
-  tag: "4.14.1"
+  tag: "4.14.2"
   pullPolicy: IfNotPresent
 
 # -- Image pull secrets for private registries
