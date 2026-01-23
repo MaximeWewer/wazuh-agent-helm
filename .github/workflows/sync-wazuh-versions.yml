@@ -333,10 +333,22 @@ jobs:
             dependencies
             automated
 
-      - name: Enable PR auto-merge
+      - name: Merge PR and trigger release
         if: steps.create_pr.outputs.pull-request-number && (github.event_name == 'schedule' || github.event.inputs.auto_release == 'pr')
         run: |
-          gh pr merge ${{ steps.create_pr.outputs.pull-request-number }} --auto --squash
+          PR_NUMBER=${{ steps.create_pr.outputs.pull-request-number }}
+
+          # Merge the PR directly (squash)
+          echo "Merging PR #${PR_NUMBER}..."
+          gh pr merge ${PR_NUMBER} --squash --delete-branch
+
+          echo "PR merged successfully"
+
+          # Trigger release workflow
+          echo "Triggering release workflow..."
+          gh workflow run release-helm.yml -f publish_all_versions=true
+
+          echo "Release workflow triggered"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
