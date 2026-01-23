@@ -1,7 +1,8 @@
 name: Release Helm chart
 
 on:
-  push:
+  pull_request:
+    types: [closed]
     branches: [main]
     paths:
       - 'charts/**'
@@ -30,6 +31,8 @@ jobs:
   prepare:
     name: Prepare release
     runs-on: ubuntu-latest
+    # Only run if PR was merged or if manually triggered
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.event.pull_request.merged == true)
     outputs:
       matrix: ${{ steps.versions.outputs.matrix }}
       default_version: ${{ steps.versions.outputs.default }}
@@ -149,7 +152,7 @@ jobs:
     name: Create GitHub release
     needs: [prepare, release]
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' || github.event.inputs.publish_all_versions == 'true'
+    if: github.event_name == 'pull_request' || github.event.inputs.publish_all_versions == 'true'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
