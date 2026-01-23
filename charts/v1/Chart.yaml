@@ -2,19 +2,49 @@ apiVersion: v2
 name: wazuh-agent
 description: A Helm chart for deploying Wazuh agents on Kubernetes as a DaemonSet.
 type: application
+
 version: 4.14.2
 appVersion: "4.14.2"
+
 keywords:
   - wazuh
   - security
   - monitoring
   - siem
   - agent
-home: https://wazuh.com
+
+home: https://github.com/MaximeWewer/wazuh-agent-helm
+
+icon: https://wazuh.com/brand-assets/Wazuh-Logo.svg
+
 sources:
-  - https://github.com/wazuh/wazuh
   - https://github.com/MaximeWewer/wazuh-agent-helm
+  - https://github.com/wazuh/wazuh
+
 maintainers:
   - name: Maxime Wewer
     url: https://github.com/MaximeWewer/
-kubeVersion: ">=1.20.0-0"
+
+annotations:
+  # Recommended minimum Kubernetes version
+  kubernetes.io/minimum-version: "1.20.0"
+
+  # Category for artifact hub
+  category: "Security"
+
+  # Changelog
+  artifacthub.io/changes: |
+    - kind: added
+      description: Initial Helm chart release
+
+  # Screenshots for artifact hub
+  artifacthub.io/screenshots: |
+    - title: Wazuh Dashboard
+      url: https://wazuh.com/wp-content/themes/wazuh-v3/assets/images/home/siem-dashboard.png
+
+  # Links
+  artifacthub.io/links: |
+    - name: Documentation
+      url: https://documentation.wazuh.com/
+    - name: Support
+      url: https://groups.google.com/g/wazuh

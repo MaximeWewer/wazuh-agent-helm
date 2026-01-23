@@ -299,6 +299,38 @@ jobs:
           echo "updated=${{ steps.update_chart.outputs.updated || 'false' }}" >> $GITHUB_OUTPUT
           echo "new_version=${{ steps.new_default.outputs.new_default }}" >> $GITHUB_OUTPUT
 
+      - name: Prepare PR body
+        id: pr_body
+        if: steps.update_chart.outputs.updated == 'true' && github.event.inputs.auto_release != 'direct'
+        run: |
+          VERSIONS_JSON=$(jq '.versions' ${{ env.VERSIONS_FILE }})
+
+          # Use heredoc to create multiline output
+          EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
+          echo "body<<$EOF" >> $GITHUB_OUTPUT
+          cat << BODY >> $GITHUB_OUTPUT
+          ## Wazuh agent version update
+
+          **Action:** ${{ github.event.inputs.action || 'sync' }}
+
+          ### Changes
+          - Updated default Wazuh version to **${{ steps.new_default.outputs.new_default }}**
+          - Updated \`image.tag\` in \`values.yaml\`
+          - Updated \`version\` and \`appVersion\` in \`Chart.yaml\`
+
+          ### Supported versions
+          \`\`\`json
+          ${VERSIONS_JSON}
+          \`\`\`
+
+          ### Wazuh release notes
+          - [Wazuh ${{ steps.new_default.outputs.new_default }}](https://github.com/wazuh/wazuh/releases/tag/v${{ steps.new_default.outputs.new_default }})
+
+          ---
+          *This PR was automatically created by the sync-wazuh-versions workflow.*
+          BODY
+          echo "$EOF" >> $GITHUB_OUTPUT
+
       - name: Create pull request
         id: create_pr
         if: steps.update_chart.outputs.updated == 'true' && github.event.inputs.auto_release != 'direct'
@@ -307,26 +339,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           commit-message: "chore: update Wazuh agent to ${{ steps.new_default.outputs.new_default }}"
           title: "chore: update Wazuh agent to ${{ steps.new_default.outputs.new_default }}"
-          body: |
-            ## Wazuh agent version update
-
-            **Action:** ${{ github.event.inputs.action || 'sync' }}
-
-            ### Changes
-            - Updated default Wazuh version to **${{ steps.new_default.outputs.new_default }}**
-            - Updated `image.tag` in `values.yaml`
-            - Updated `version` and `appVersion` in `Chart.yaml`
-
-            ### Supported versions
-            ```json
-            $(jq '.versions' ${{ env.VERSIONS_FILE }})
-            ```
-
-            ### Wazuh release notes
-            - [Wazuh ${{ steps.new_default.outputs.new_default }}](https://github.com/wazuh/wazuh/releases/tag/v${{ steps.new_default.outputs.new_default }})
-
-            ---
-            *This PR was automatically created by the sync-wazuh-versions workflow.*
+          body: ${{ steps.pr_body.outputs.body }}
           branch: "chore/wazuh-${{ steps.new_default.outputs.new_default }}"
           delete-branch: true
           labels: |

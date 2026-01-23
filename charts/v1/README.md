@@ -1,4 +1,4 @@
-# Wazuh Agent Helm Chart
+# Wazuh agent Helm chart
 
 A Helm chart for deploying Wazuh agents on Kubernetes as a DaemonSet.
 
@@ -16,7 +16,7 @@ The chart uses a DaemonSet to ensure every node (including control-plane nodes) 
 
 ## Installation
 
-### Install from OCI Registry
+### Install from OCI registry
 
 ```bash
 helm install wazuh-agent oci://ghcr.io/maximewewer/charts/wazuh-agent \
@@ -27,15 +27,15 @@ helm install wazuh-agent oci://ghcr.io/maximewewer/charts/wazuh-agent \
   --set registration.password=<REGISTRATION_PASSWORD>
 ```
 
-> **Note:** Chart versions match Wazuh agent versions (e.g., `4.14.2`, `4.13.4`).
+> **Note:** Chart versions match Wazuh agent versions (e.g., `4.14.2`, `4.13.1`).
 
-### Install from Source
+### Install from source
 
 ```bash
 git clone https://github.com/maximewewer/wazuh-agent-helm.git
 cd wazuh-agent-helm
 
-helm install wazuh-agent ./charts/v1s/v1 \
+helm install wazuh-agent ./charts/v1 \
   --namespace wazuh \
   --create-namespace \
   --set manager.address=<WAZUH_MANAGER_IP> \
@@ -44,14 +44,14 @@ helm install wazuh-agent ./charts/v1s/v1 \
 
 ## Configuration
 
-### Required Parameters
+### Required parameters
 
 | Parameter               | Description                                                        |
 | ----------------------- | ------------------------------------------------------------------ |
 | `manager.address`       | Wazuh manager IP address or hostname                               |
 | `registration.password` | Agent registration password (or use `registration.existingSecret`) |
 
-### Manager Configuration
+### Manager configuration
 
 | Parameter          | Description                      | Default |
 | ------------------ | -------------------------------- | ------- |
@@ -59,7 +59,7 @@ helm install wazuh-agent ./charts/v1s/v1 \
 | `manager.port`     | Manager communication port       | `1514`  |
 | `manager.protocol` | Communication protocol (tcp/udp) | `tcp`   |
 
-### Registration Configuration
+### Registration configuration
 
 | Parameter                        | Description                                       | Default |
 | -------------------------------- | ------------------------------------------------- | ------- |
@@ -69,7 +69,7 @@ helm install wazuh-agent ./charts/v1s/v1 \
 | `registration.existingSecret`    | Use existing secret for authd.pass                | `""`    |
 | `registration.existingSecretKey` | Key in existing secret                            | `""`    |
 
-### Agent Configuration
+### Agent configuration
 
 | Parameter                   | Description                                             | Default                           |
 | --------------------------- | ------------------------------------------------------- | --------------------------------- |
@@ -79,7 +79,7 @@ helm install wazuh-agent ./charts/v1s/v1 \
 | `extraLocalInternalOptions` | Additional local_internal_options.conf entries          | `""`                              |
 | `activeResponseScripts`     | Custom active response scripts (map of name -> content) | `{}`                              |
 
-### Image Configuration
+### Image configuration
 
 | Parameter              | Description                  | Default             |
 | ---------------------- | ---------------------------- | ------------------- |
@@ -90,7 +90,7 @@ helm install wazuh-agent ./charts/v1s/v1 \
 | `initImage.tag`        | Init container image tag     | `1.37`              |
 | `imagePullSecrets`     | Image pull secrets           | `[]`                |
 
-### Resources and Scheduling
+### Resources and scheduling
 
 | Parameter                   | Description         | Default                   |
 | --------------------------- | ------------------- | ------------------------- |
@@ -103,7 +103,7 @@ helm install wazuh-agent ./charts/v1s/v1 \
 | `affinity`                  | Pod affinity rules  | `{}`                      |
 | `priorityClassName`         | Priority class name | `""`                      |
 
-### Pod Configuration
+### Pod configuration
 
 | Parameter                                     | Description                   | Default         |
 | --------------------------------------------- | ----------------------------- | --------------- |
@@ -113,7 +113,7 @@ helm install wazuh-agent ./charts/v1s/v1 \
 | `updateStrategy.type`                         | DaemonSet update strategy     | `RollingUpdate` |
 | `updateStrategy.rollingUpdate.maxUnavailable` | Max unavailable during update | `1`             |
 
-### Security Context
+### Security context
 
 | Parameter                                  | Description                  | Default                |
 | ------------------------------------------ | ---------------------------- | ---------------------- |
@@ -124,7 +124,7 @@ helm install wazuh-agent ./charts/v1s/v1 \
 | `securityContext.allowPrivilegeEscalation` | Allow privilege escalation   | `true`                 |
 | `securityContext.capabilities.add`         | Added capabilities           | `["SETGID", "SETUID"]` |
 
-### RBAC and ServiceAccount
+### RBAC and service account
 
 | Parameter                    | Description                 | Default |
 | ---------------------------- | --------------------------- | ------- |
@@ -151,7 +151,7 @@ Supported volume types: `hostPath`, `emptyDir`, `pvc`
 | `persistence.var.enabled`                  | Enable persistence for var             | `false`                                |
 | `persistence.activeResponse.enabled`       | Enable persistence for active-response | `false`                                |
 
-### Extra Volumes
+### Extra volumes
 
 For mounting additional host paths (e.g., host logs to monitor):
 
@@ -160,7 +160,7 @@ For mounting additional host paths (e.g., host logs to monitor):
 | `extraVolumeMounts` | Additional volume mounts for agent | `[]`    |
 | `extraVolumes`      | Additional volume definitions      | `[]`    |
 
-### Optional Features
+### Optional features
 
 | Parameter                          | Description                | Default |
 | ---------------------------------- | -------------------------- | ------- |
@@ -171,7 +171,7 @@ For mounting additional host paths (e.g., host logs to monitor):
 
 ## Examples
 
-### Basic Deployment
+### Basic deployment
 
 ```yaml
 manager:
@@ -181,7 +181,7 @@ registration:
   password: "my-secure-password"
 ```
 
-### Using an Existing Secret
+### Using an existing secret
 
 ```bash
 # Create secret
@@ -196,7 +196,7 @@ helm install wazuh-agent ./charts/v1 \
   --set registration.existingSecret=wazuh-authd
 ```
 
-### Monitoring Host Logs
+### Monitoring host logs
 
 ```yaml
 manager:
@@ -227,7 +227,7 @@ extraOssecConf: |
   </localfile>
 ```
 
-### Custom Active Response Scripts
+### Custom active response scripts
 
 ```yaml
 manager:
@@ -299,7 +299,7 @@ The chart deploys the following resources:
 | PodDisruptionBudget | High availability (optional)                            |
 | NetworkPolicy       | Network security (optional)                             |
 
-### Init Containers
+### Init containers
 
 The pod includes init containers that run in sequence:
 
@@ -359,7 +359,7 @@ kubectl exec -n wazuh -it <pod-name> -c wazuh-agent -- cat /var/ossec/etc/ossec.
 kubectl exec -n wazuh -it <pod-name> -c wazuh-agent -- ls -la /var/ossec/active-response/bin/
 ```
 
-### Common Issues
+### Common issues
 
 | Issue                  | Solution                                                               |
 | ---------------------- | ---------------------------------------------------------------------- |
