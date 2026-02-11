@@ -1,13 +1,19 @@
 {
   "description": "Supported Wazuh agent versions for this Helm chart",
   "minimum_version": "4.13.0",
-  "default_version": "4.14.2",
+  "default_version": "4.14.3",
   "versions": [
+    {
+      "version": "4.14.3",
+      "chart_version": "v1",
+      "supported": true,
+      "default": true
+    },
     {
       "version": "4.14.2",
       "chart_version": "v1",
       "supported": true,
-      "default": true
+      "default": false
     },
     {
       "version": "4.14.1",
@@ -35,5 +41,5 @@
     }
   ],
   "excluded_versions": [],
-  "last_sync": "2026-01-23T10:02:40Z"
+  "last_sync": "2026-02-11T17:59:36Z"
 }
