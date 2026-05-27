@@ -336,7 +336,7 @@ jobs:
         if: steps.update_chart.outputs.updated == 'true' && github.event.inputs.auto_release != 'direct'
         uses: peter-evans/create-pull-request@v6
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.RELEASE_PAT }}
           commit-message: "chore: update Wazuh agent to ${{ steps.new_default.outputs.new_default }}"
           title: "chore: update Wazuh agent to ${{ steps.new_default.outputs.new_default }}"
           body: ${{ steps.pr_body.outputs.body }}
@@ -346,24 +346,20 @@ jobs:
             dependencies
             automated
 
-      - name: Merge PR and trigger release
+      - name: Merge PR (release auto-triggers via pull_request event)
         if: steps.create_pr.outputs.pull-request-number && (github.event_name == 'schedule' || github.event.inputs.auto_release == 'pr')
         run: |
           PR_NUMBER=${{ steps.create_pr.outputs.pull-request-number }}
 
-          # Merge the PR directly (squash)
+          # Squash-merge the PR. Because the merge is performed with RELEASE_PAT
+          # (not GITHUB_TOKEN), it fires release-helm.yml's pull_request:closed
+          # trigger, which publishes all supported versions. No explicit dispatch.
           echo "Merging PR #${PR_NUMBER}..."
           gh pr merge ${PR_NUMBER} --squash --delete-branch
 
-          echo "PR merged successfully"
-
-          # Trigger release workflow
-          echo "Triggering release workflow..."
-          gh workflow run release-helm.yml -f publish_all_versions=true
-
-          echo "Release workflow triggered"
+          echo "PR merged; release-helm will run via its pull_request trigger"
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.RELEASE_PAT }}
 
       - name: Commit for direct release
         if: steps.update_chart.outputs.updated == 'true' && github.event.inputs.auto_release == 'direct'
@@ -381,7 +377,7 @@ jobs:
           gh workflow run release-helm.yml \
             -f publish_all_versions=true
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.RELEASE_PAT }}
 
       - name: Summary
         run: |

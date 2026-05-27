@@ -56,7 +56,7 @@ jobs:
           DEFAULT_VERSION=$(jq -r '.default_version' ${{ env.VERSIONS_FILE }})
           echo "default=${DEFAULT_VERSION}" >> $GITHUB_OUTPUT
 
-          if [ "${{ github.event.inputs.publish_all_versions }}" == "true" ]; then
+          if [ "${{ github.event.inputs.publish_all_versions }}" == "true" ] || [ "${{ github.event_name }}" == "pull_request" ]; then
             # All supported versions with their chart_version, sorted by semver descending
             MATRIX=$(jq -c '[.versions[] | select(.supported == true) | {version: .version, chart_version: .chart_version}] | sort_by(.version | split(".") | map(tonumber)) | reverse' ${{ env.VERSIONS_FILE }})
             echo "Publishing all supported versions"
