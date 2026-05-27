@@ -52,7 +52,7 @@ jobs:
       new_version: ${{ steps.result.outputs.new_version }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -334,7 +334,7 @@ jobs:
       - name: Create pull request
         id: create_pr
         if: steps.update_chart.outputs.updated == 'true' && github.event.inputs.auto_release != 'direct'
-        uses: peter-evans/create-pull-request@v6
+        uses: peter-evans/create-pull-request@v8
         with:
           token: ${{ secrets.RELEASE_PAT }}
           commit-message: "chore: update Wazuh agent to ${{ steps.new_default.outputs.new_default }}"
