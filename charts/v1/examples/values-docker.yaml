@@ -1,0 +1,37 @@
+# Example: Docker container log monitoring
+# Collect container stdout/stderr written by the Docker json-file log driver
+#
+# Note: for containerd-based clusters use the audit-log example instead
+# (logs live under /var/log/pods).
+#
+# Usage:
+#   helm install wazuh-docker ./wazuh-agent -f examples/values-docker.yaml \
+#     --set manager.address=<MANAGER_IP> \
+#     --set registration.password=<PASSWORD>
+
+manager:
+  address: "" # Required: Wazuh manager IP/hostname
+
+registration:
+  password: "" # Required: Registration password
+
+agentNamePrefix: "k8s-docker"
+
+# Mount the Docker container log tree read-only
+extraVolumeMounts:
+  - name: docker-containers
+    mountPath: /host/var/lib/docker/containers
+    readOnly: true
+
+extraVolumes:
+  - name: docker-containers
+    hostPath:
+      path: /var/lib/docker/containers
+      type: DirectoryOrCreate
+
+extraOssecConf: |
+  <!-- Docker json-file driver writes one *-json.log per container -->
+  <localfile>
+    <log_format>json</log_format>
+    <location>/host/var/lib/docker/containers/*/*-json.log</location>
+  </localfile>

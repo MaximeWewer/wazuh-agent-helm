@@ -1,0 +1,65 @@
+# Example: File Integrity Monitoring (FIM)
+# Watch critical host directories for create/modify/delete events
+#
+# Usage:
+#   helm install wazuh-fim ./wazuh-agent -f examples/values-fim.yaml \
+#     --set manager.address=<MANAGER_IP> \
+#     --set registration.password=<PASSWORD>
+
+manager:
+  address: "" # Required: Wazuh manager IP/hostname
+
+registration:
+  password: "" # Required: Registration password
+
+agentNamePrefix: "k8s-fim"
+
+# Persist FIM baseline database across restarts so changes aren't re-reported
+persistence:
+  queue:
+    enabled: true
+    type: hostPath
+    hostPath:
+      path: /var/lib/wazuh-agent/queue
+      type: DirectoryOrCreate
+
+# Mount sensitive host paths read-only for integrity checks
+extraVolumeMounts:
+  - name: host-etc
+    mountPath: /host/etc
+    readOnly: true
+  - name: host-bin
+    mountPath: /host/usr/bin
+    readOnly: true
+  - name: host-sbin
+    mountPath: /host/usr/sbin
+    readOnly: true
+
+extraVolumes:
+  - name: host-etc
+    hostPath:
+      path: /etc
+      type: Directory
+  - name: host-bin
+    hostPath:
+      path: /usr/bin
+      type: Directory
+  - name: host-sbin
+    hostPath:
+      path: /usr/sbin
+      type: Directory
+
+extraOssecConf: |
+  <syscheck>
+    <disabled>no</disabled>
+    <!-- Full scan every 12 hours -->
+    <frequency>43200</frequency>
+    <!-- report_changes records the actual diff of text files -->
+    <directories check_all="yes" report_changes="yes" realtime="yes">/host/etc</directories>
+    <directories check_all="yes" realtime="yes">/host/usr/bin</directories>
+    <directories check_all="yes" realtime="yes">/host/usr/sbin</directories>
+    <!-- Noisy files to ignore -->
+    <ignore>/host/etc/mtab</ignore>
+    <ignore>/host/etc/resolv.conf</ignore>
+    <ignore type="sregex">.log$|.tmp$</ignore>
+  </syscheck>

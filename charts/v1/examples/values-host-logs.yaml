@@ -1,0 +1,49 @@
+# Example: Host system log monitoring
+# Collect Linux system logs (syslog, auth, kernel) from every node
+#
+# Usage:
+#   helm install wazuh-logs ./wazuh-agent -f examples/values-host-logs.yaml \
+#     --set manager.address=<MANAGER_IP> \
+#     --set registration.password=<PASSWORD>
+
+manager:
+  address: "" # Required: Wazuh manager IP/hostname
+
+registration:
+  password: "" # Required: Registration password
+
+agentNamePrefix: "k8s-host"
+
+# Mount the host /var/log read-only on each node
+extraVolumeMounts:
+  - name: host-logs
+    mountPath: /host/var/log
+    readOnly: true
+
+extraVolumes:
+  - name: host-logs
+    hostPath:
+      path: /var/log
+      type: Directory
+
+extraOssecConf: |
+  <!-- System authentication events -->
+  <localfile>
+    <log_format>syslog</log_format>
+    <location>/host/var/log/auth.log</location>
+  </localfile>
+  <!-- General system log -->
+  <localfile>
+    <log_format>syslog</log_format>
+    <location>/host/var/log/syslog</location>
+  </localfile>
+  <!-- Kernel messages -->
+  <localfile>
+    <log_format>syslog</log_format>
+    <location>/host/var/log/kern.log</location>
+  </localfile>
+  <!-- RHEL/CentOS family secure log -->
+  <localfile>
+    <log_format>syslog</log_format>
+    <location>/host/var/log/secure</location>
+  </localfile>

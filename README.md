@@ -56,6 +56,9 @@ For detailed configuration options, examples, and troubleshooting, see the [char
 Example configurations are available in the [`charts/v1/examples/`](./charts/v1/examples/) directory:
 
 - **[values-auditlog.yaml](./charts/v1/examples/values-auditlog.yaml)** - Monitor Kubernetes audit logs on control-plane nodes
+- **[values-host-logs.yaml](./charts/v1/examples/values-host-logs.yaml)** - Collect Linux system logs (syslog, auth, kernel) from every node
+- **[values-fim.yaml](./charts/v1/examples/values-fim.yaml)** - File Integrity Monitoring of critical host directories
+- **[values-docker.yaml](./charts/v1/examples/values-docker.yaml)** - Monitor Docker container logs (json-file driver)
 
 ## Contributing
 

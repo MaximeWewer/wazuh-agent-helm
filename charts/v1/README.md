@@ -171,6 +171,25 @@ For mounting additional host paths (e.g., host logs to monitor):
 
 ## Examples
 
+Ready-to-use values files live in the [`examples/`](./examples/) directory:
+
+| File                                                   | Use case                                                              |
+| ------------------------------------------------------ | --------------------------------------------------------------------- |
+| [values-auditlog.yaml](./examples/values-auditlog.yaml)     | Kubernetes audit logs on control-plane nodes                          |
+| [values-host-logs.yaml](./examples/values-host-logs.yaml)   | Linux system logs (syslog, auth, kernel) from every node              |
+| [values-fim.yaml](./examples/values-fim.yaml)               | File Integrity Monitoring of critical host directories                |
+| [values-docker.yaml](./examples/values-docker.yaml)         | Docker container logs (json-file driver)                              |
+
+Apply one with `-f`:
+
+```bash
+helm install wazuh-agent ./charts/v1 \
+  --namespace wazuh --create-namespace \
+  -f charts/v1/examples/values-host-logs.yaml \
+  --set manager.address=192.168.1.100 \
+  --set registration.password=my-secure-password
+```
+
 ### Basic deployment
 
 ```yaml
