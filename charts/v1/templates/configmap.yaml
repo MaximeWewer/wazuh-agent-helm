@@ -27,6 +27,9 @@ data:
         {{- end }}
         <notify_time>30</notify_time>
         <time-reconnect>120</time-reconnect>
+        {{- with .Values.client.forceReconnectInterval }}
+        <force_reconnect_interval>{{ . }}</force_reconnect_interval>
+        {{- end }}
         <auto_restart>yes</auto_restart>
         <crypto_method>aes</crypto_method>
       </client>

@@ -44,6 +44,15 @@ registration:
   # Empty means the agent's built-in default.
   sslCipher: ""
 
+# -- Agent-to-manager connection behaviour
+client:
+  # -- Force a reconnection at this interval even while communication is healthy.
+  # Accepts a time unit suffix (s/m/h/d/w). Empty disables it (agent default: 0).
+  # Useful behind a Service or load balancer: agents hold a long-lived TCP
+  # connection and otherwise never rebalance onto managers added after they
+  # connected.
+  forceReconnectInterval: ""
+
 # -- Agent name prefix (combined with node name)
 agentNamePrefix: "k8s"
 
