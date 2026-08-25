@@ -103,6 +103,11 @@
       "description": "Injected by Helm when this chart is used as a dependency."
     },
 
+    "enabled": {
+      "type": "boolean",
+      "description": "Injected by Helm when this chart is used as a dependency with a `condition:` field. Ignored when the chart is installed directly."
+    },
+
     "manager": {
       "type": "object",
       "additionalProperties": false,
