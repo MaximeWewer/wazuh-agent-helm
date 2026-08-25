@@ -9,11 +9,7 @@ data:
   ossec.conf: |
     <ossec_config>
       <client>
-        <server>
-          <address>${WAZUH_MANAGER}</address>
-          <port>${WAZUH_PORT}</port>
-          <protocol>${WAZUH_PROTOCOL}</protocol>
-        </server>
+        {{- include "wazuh-agent.serverBlocks" . | trim | nindent 8 }}
         <enrollment>
           <enabled>yes</enabled>
           <agent_name>${WAZUH_AGENT_NAME}</agent_name>

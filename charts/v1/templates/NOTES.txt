@@ -17,14 +17,18 @@ Agent Prefix: {{ .Values.agentNamePrefix }}
 WAZUH MANAGER
 --------------------------------------------------------------------------------
 
+{{- if .Values.manager.servers }}
+Addresses:         {{ range $i, $s := .Values.manager.servers }}{{ if $i }}, {{ end }}{{ $s.address }}{{ end }} (failover, in order)
+{{- else }}
 Address:           {{ .Values.manager.address | default "<NOT SET>" }}
+{{- end }}
 Port:              {{ .Values.manager.port }}
 Protocol:          {{ .Values.manager.protocol }}
 Registration Port: {{ .Values.registration.port }}
-{{- if not .Values.manager.address }}
+{{- if and (not .Values.manager.address) (not .Values.manager.servers) }}
 
 WARNING: Manager address not set! Agents won't connect.
-         Set 'manager.address' in your values.
+         Set 'manager.address' (or 'manager.servers') in your values.
 {{- end }}
 
 --------------------------------------------------------------------------------

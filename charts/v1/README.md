@@ -58,6 +58,7 @@ helm install wazuh-agent ./charts/v1 \
 | `manager.address`  | Wazuh manager IP/hostname        | `""`    |
 | `manager.port`     | Manager communication port       | `1514`  |
 | `manager.protocol` | Communication protocol (tcp/udp) | `tcp`   |
+| `manager.servers`  | Failover manager list (replaces `address`) | `[]`    |
 
 ### Registration configuration
 

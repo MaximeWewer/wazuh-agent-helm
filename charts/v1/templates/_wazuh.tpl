@@ -19,8 +19,29 @@ Registration server (defaults to manager address)
 {{- define "wazuh-agent.registrationServer" -}}
 {{- if .Values.registration.server }}
 {{- .Values.registration.server }}
+{{- else if .Values.manager.servers }}
+{{- (first .Values.manager.servers).address }}
 {{- else }}
 {{- .Values.manager.address }}
+{{- end }}
+{{- end }}
+
+{{/*
+Renders one <server> block per configured manager. `manager.servers` takes
+precedence over `manager.address`; per-entry keys fall back to the manager defaults.
+*/}}
+{{- define "wazuh-agent.serverBlocks" -}}
+{{- $m := .Values.manager -}}
+{{- $servers := $m.servers -}}
+{{- if not $servers -}}
+{{- $servers = list (dict "address" $m.address) -}}
+{{- end -}}
+{{- range $servers }}
+<server>
+  <address>{{ .address }}</address>
+  <port>{{ .port | default $m.port }}</port>
+  <protocol>{{ .protocol | default $m.protocol }}</protocol>
+</server>
 {{- end }}
 {{- end }}
 
@@ -222,12 +243,6 @@ Init container: write ossec config
   securityContext:
     runAsUser: 0
   env:
-    - name: WAZUH_MANAGER
-      value: {{ .Values.manager.address | quote }}
-    - name: WAZUH_PORT
-      value: {{ .Values.manager.port | quote }}
-    - name: WAZUH_PROTOCOL
-      value: {{ .Values.manager.protocol | quote }}
     - name: WAZUH_REGISTRATION_SERVER
       value: {{ include "wazuh-agent.registrationServer" . | quote }}
     - name: WAZUH_REGISTRATION_PORT
@@ -250,9 +265,6 @@ Init container: write ossec config
         FINAL_AGENT_NAME="${WAZUH_AGENT_NAME}"
       fi
       sed -i \
-        -e "s|\${WAZUH_MANAGER}|${WAZUH_MANAGER}|g" \
-        -e "s|\${WAZUH_PORT}|${WAZUH_PORT}|g" \
-        -e "s|\${WAZUH_PROTOCOL}|${WAZUH_PROTOCOL}|g" \
         -e "s|\${WAZUH_REGISTRATION_SERVER}|${WAZUH_REGISTRATION_SERVER}|g" \
         -e "s|\${WAZUH_REGISTRATION_PORT}|${WAZUH_REGISTRATION_PORT}|g" \
         -e "s|\${WAZUH_AGENT_NAME}|${FINAL_AGENT_NAME}|g" \
