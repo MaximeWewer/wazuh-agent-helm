@@ -20,6 +20,15 @@ registration:
   existingSecret: ""
   # -- Key in the existing secret containing the password
   existingSecretKey: ""
+  # -- Wazuh group(s) to assign the agent to at enrollment.
+  # Accepts a list or a comma-separated string. Empty means the manager's `default` group.
+  # Order matters: later groups override earlier ones when the manager merges agent.conf.
+  groups: []
+    # - k8s-nodes
+    # - prod
+  # -- OpenSSL cipher suite string used for the enrollment TLS handshake.
+  # Empty means the agent's built-in default.
+  sslCipher: ""
 
 # -- Agent name prefix (combined with node name)
 agentNamePrefix: "k8s"

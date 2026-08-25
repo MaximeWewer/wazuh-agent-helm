@@ -68,6 +68,8 @@ helm install wazuh-agent ./charts/v1 \
 | `registration.password`          | Registration password                             | `""`    |
 | `registration.existingSecret`    | Use existing secret for authd.pass                | `""`    |
 | `registration.existingSecretKey` | Key in existing secret                            | `""`    |
+| `registration.groups`            | Wazuh group(s) assigned at enrollment (list or CSV) | `[]`    |
+| `registration.sslCipher`         | OpenSSL cipher suite for the enrollment handshake  | `""`    |
 
 ### Agent configuration
 

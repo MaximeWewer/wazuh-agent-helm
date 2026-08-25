@@ -19,6 +19,12 @@ data:
           <agent_name>${WAZUH_AGENT_NAME}</agent_name>
           <manager_address>${WAZUH_REGISTRATION_SERVER}</manager_address>
           <port>${WAZUH_REGISTRATION_PORT}</port>
+          {{- with .Values.registration.groups }}
+          <groups>{{ if kindIs "string" . }}{{ . }}{{ else }}{{ join "," . }}{{ end }}</groups>
+          {{- end }}
+          {{- with .Values.registration.sslCipher }}
+          <ssl_cipher>{{ . }}</ssl_cipher>
+          {{- end }}
         </enrollment>
         <notify_time>30</notify_time>
         <time-reconnect>120</time-reconnect>
