@@ -40,6 +40,14 @@ registration:
 # -- Agent name prefix (combined with node name)
 agentNamePrefix: "k8s"
 
+# -- agent.conf profile(s) the agent applies, matching `<agent_config profile="...">`
+# blocks in the shared configuration. Accepts a list or a comma-separated string.
+# Distinct from `registration.groups`: groups decide which agent.conf the manager
+# pushes, profiles decide which blocks inside it the agent applies.
+configProfile: []
+  # - production
+  # - debian
+
 # -- Container image configuration
 image:
   repository: wazuh/wazuh-agent

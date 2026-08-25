@@ -22,6 +22,9 @@ data:
           <ssl_cipher>{{ . }}</ssl_cipher>
           {{- end }}
         </enrollment>
+        {{- with .Values.configProfile }}
+        <config-profile>{{ if kindIs "string" . }}{{ . }}{{ else }}{{ join "," . }}{{ end }}</config-profile>
+        {{- end }}
         <notify_time>30</notify_time>
         <time-reconnect>120</time-reconnect>
         <auto_restart>yes</auto_restart>
