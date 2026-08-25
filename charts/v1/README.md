@@ -4,9 +4,12 @@ A Helm chart for deploying Wazuh agents on Kubernetes as a DaemonSet.
 
 ## Description
 
-This chart deploys Wazuh security agents across all nodes in your Kubernetes cluster. Each agent connects to your Wazuh manager for centralized security monitoring, intrusion detection, vulnerability assessment, and log analysis.
+This chart deploys Wazuh security agents across all nodes in your Kubernetes cluster.
+Each agent connects to your Wazuh manager for centralized security monitoring,
+intrusion detection, vulnerability assessment, and log analysis.
 
-The chart uses a DaemonSet to ensure every node (including control-plane nodes) runs a Wazuh agent, providing comprehensive visibility into your cluster's security posture.
+The chart uses a DaemonSet to ensure every node (including control-plane nodes) runs
+a Wazuh agent, providing comprehensive visibility into your cluster's security posture.
 
 ## Prerequisites
 
@@ -53,42 +56,42 @@ helm install wazuh-agent ./charts/v1 \
 
 ### Manager configuration
 
-| Parameter          | Description                      | Default |
-| ------------------ | -------------------------------- | ------- |
-| `manager.address`  | Wazuh manager IP/hostname        | `""`    |
-| `manager.port`     | Manager communication port       | `1514`  |
-| `manager.protocol` | Communication protocol (tcp/udp) | `tcp`   |
-| `manager.maxRetries` | Connection attempts before failing over to the next manager | `5` |
-| `manager.retryInterval` | Seconds between connection attempts | `10` |
-| `manager.servers`  | Failover manager list (replaces `address`) | `[]`    |
+| Parameter               | Description                                                 | Default |
+| ----------------------- | ----------------------------------------------------------- | ------- |
+| `manager.address`       | Wazuh manager IP/hostname                                   | `""`    |
+| `manager.port`          | Manager communication port                                  | `1514`  |
+| `manager.protocol`      | Communication protocol (tcp/udp)                            | `tcp`   |
+| `manager.maxRetries`    | Connection attempts before failing over to the next manager | `5`     |
+| `manager.retryInterval` | Seconds between connection attempts                         | `10`    |
+| `manager.servers`       | Failover manager list (replaces `address`)                  | `[]`    |
 
 ### Registration configuration
 
-| Parameter                        | Description                                       | Default |
-| -------------------------------- | ------------------------------------------------- | ------- |
-| `registration.server`            | Registration server (defaults to manager.address) | `""`    |
-| `registration.port`              | Registration port                                 | `1515`  |
-| `registration.password`          | Registration password                             | `""`    |
-| `registration.existingSecret`    | Use existing secret for authd.pass                | `""`    |
-| `registration.existingSecretKey` | Key in existing secret                            | `""`    |
+| Parameter                        | Description                                         | Default |
+| -------------------------------- | --------------------------------------------------- | ------- |
+| `registration.server`            | Registration server (defaults to manager.address)   | `""`    |
+| `registration.port`              | Registration port                                   | `1515`  |
+| `registration.password`          | Registration password                               | `""`    |
+| `registration.existingSecret`    | Use existing secret for authd.pass                  | `""`    |
+| `registration.existingSecretKey` | Key in existing secret                              | `""`    |
 | `registration.groups`            | Wazuh group(s) assigned at enrollment (list or CSV) | `[]`    |
-| `registration.sslCipher`         | OpenSSL cipher suite for the enrollment handshake  | `""`    |
+| `registration.sslCipher`         | OpenSSL cipher suite for the enrollment handshake   | `""`    |
 
 ### Agent configuration
 
-| Parameter                   | Description                                             | Default                           |
-| --------------------------- | ------------------------------------------------------- | --------------------------------- |
-| `agentNamePrefix`           | Prefix for agent name (combined with node name)         | `k8s`                             |
-| `configProfile`             | agent.conf profile(s) to apply (list or CSV)            | `[]`                              |
-| `client.notifyTime`         | Seconds between agent check-ins                         | `30`                              |
-| `client.timeReconnect`      | Seconds before reconnecting after a failed check-in     | `120`                             |
-| `client.forceReconnectInterval` | Force reconnect interval, e.g. `1h` (empty = disabled) | `""`                      |
-| `client.autoRestart`        | Restart agent when the manager pushes a new config      | `true`                            |
-| `client.cryptoMethod`       | Message encryption (`aes` or `blowfish`)                | `aes`                             |
-| `localInternalOptions`      | Base content for local_internal_options.conf            | `wazuh_command.remote_commands=1` |
-| `extraOssecConf`            | Additional ossec.conf entries (raw XML)                 | `""`                              |
-| `extraLocalInternalOptions` | Additional local_internal_options.conf entries          | `""`                              |
-| `activeResponseScripts`     | Custom active response scripts (map of name -> content) | `{}`                              |
+| Parameter                       | Description                                             | Default                           |
+| ------------------------------- | ------------------------------------------------------- | --------------------------------- |
+| `agentNamePrefix`               | Prefix for agent name (combined with node name)         | `k8s`                             |
+| `configProfile`                 | agent.conf profile(s) to apply (list or CSV)            | `[]`                              |
+| `client.notifyTime`             | Seconds between agent check-ins                         | `30`                              |
+| `client.timeReconnect`          | Seconds before reconnecting after a failed check-in     | `120`                             |
+| `client.forceReconnectInterval` | Force reconnect interval, e.g. `1h` (empty = disabled)  | `""`                              |
+| `client.autoRestart`            | Restart agent when the manager pushes a new config      | `true`                            |
+| `client.cryptoMethod`           | Message encryption (`aes` or `blowfish`)                | `aes`                             |
+| `localInternalOptions`          | Base content for local_internal_options.conf            | `wazuh_command.remote_commands=1` |
+| `extraOssecConf`                | Additional ossec.conf entries (raw XML)                 | `""`                              |
+| `extraLocalInternalOptions`     | Additional local_internal_options.conf entries          | `""`                              |
+| `activeResponseScripts`         | Custom active response scripts (map of name -> content) | `{}`                              |
 
 ### Image configuration
 
@@ -146,21 +149,23 @@ helm install wazuh-agent ./charts/v1 \
 
 ### Persistence
 
-Each Wazuh data directory can be configured independently with its own volume type. Binaries (`bin`, `lib`, `ruleset`, `wodles`) come from the image and don't need persistence.
+Each Wazuh data directory can be configured independently with its own volume type.
+Binaries (`bin`, `lib`, `ruleset`, `wodles`) come from the image and don't need
+persistence.
 
 Supported volume types: `hostPath`, `emptyDir`, `pvc`
 
-| Parameter                                  | Description                            | Default                                |
-| ------------------------------------------ | -------------------------------------- | -------------------------------------- |
-| `persistence.etc.enabled`                  | Enable persistence for /var/ossec/etc  | `true`                                 |
-| `persistence.etc.type`                     | Volume type                            | `hostPath`                             |
-| `persistence.etc.hostPath.path`            | Host path                              | `/var/lib/wazuh-agent/etc`             |
-| `persistence.logs.enabled`                 | Enable persistence for logs            | `true`                                 |
-| `persistence.logs.type`                    | Volume type                            | `hostPath`                             |
-| `persistence.logs.hostPath.path`           | Host path                              | `/var/lib/wazuh-agent/logs`            |
-| `persistence.queue.enabled`                | Enable persistence for queue           | `false`                                |
-| `persistence.var.enabled`                  | Enable persistence for var             | `false`                                |
-| `persistence.activeResponse.enabled`       | Enable persistence for active-response | `false`                                |
+| Parameter                            | Description                            | Default                     |
+| ------------------------------------ | -------------------------------------- | --------------------------- |
+| `persistence.etc.enabled`            | Enable persistence for /var/ossec/etc  | `true`                      |
+| `persistence.etc.type`               | Volume type                            | `hostPath`                  |
+| `persistence.etc.hostPath.path`      | Host path                              | `/var/lib/wazuh-agent/etc`  |
+| `persistence.logs.enabled`           | Enable persistence for logs            | `true`                      |
+| `persistence.logs.type`              | Volume type                            | `hostPath`                  |
+| `persistence.logs.hostPath.path`     | Host path                              | `/var/lib/wazuh-agent/logs` |
+| `persistence.queue.enabled`          | Enable persistence for queue           | `false`                     |
+| `persistence.var.enabled`            | Enable persistence for var             | `false`                     |
+| `persistence.activeResponse.enabled` | Enable persistence for active-response | `false`                     |
 
 ### Extra volumes
 
@@ -211,12 +216,12 @@ upstream field stays usable.
 
 Ready-to-use values files live in the [`examples/`](./examples/) directory:
 
-| File                                                   | Use case                                                              |
-| ------------------------------------------------------ | --------------------------------------------------------------------- |
-| [values-auditlog.yaml](./examples/values-auditlog.yaml)     | Kubernetes audit logs on control-plane nodes                          |
-| [values-host-logs.yaml](./examples/values-host-logs.yaml)   | Linux system logs (syslog, auth, kernel) from every node              |
-| [values-fim.yaml](./examples/values-fim.yaml)               | File Integrity Monitoring of critical host directories                |
-| [values-docker.yaml](./examples/values-docker.yaml)         | Docker container logs (json-file driver)                              |
+| File                                                      | Use case                                                 |
+| --------------------------------------------------------- | -------------------------------------------------------- |
+| [values-auditlog.yaml](./examples/values-auditlog.yaml)   | Kubernetes audit logs on control-plane nodes             |
+| [values-host-logs.yaml](./examples/values-host-logs.yaml) | Linux system logs (syslog, auth, kernel) from every node |
+| [values-fim.yaml](./examples/values-fim.yaml)             | File Integrity Monitoring of critical host directories   |
+| [values-docker.yaml](./examples/values-docker.yaml)       | Docker container logs (json-file driver)                 |
 
 Apply one with `-f`:
 
@@ -305,7 +310,8 @@ activeResponseScripts:
       https://hooks.slack.com/services/xxx
 ```
 
-Scripts are automatically installed to `/var/ossec/active-response/bin/` with proper permissions (750, wazuh:wazuh).
+Scripts are automatically installed to `/var/ossec/active-response/bin/` with proper
+permissions (750, wazuh:wazuh).
 
 ### Kubernetes audit logs
 

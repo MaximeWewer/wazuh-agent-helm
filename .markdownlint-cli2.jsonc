@@ -1,0 +1,14 @@
+{
+  // Config reference tables carry long parameter descriptions and example
+  // commands; wrapping them would hurt readability more than an 80-column
+  // rule helps. Prose still wraps at 100.
+  "config": {
+    "MD013": {
+      "line_length": 100,
+      "tables": false,
+      "code_blocks": false
+    }
+  },
+  "globs": ["**/*.md"],
+  "ignores": ["node_modules/**"]
+}
