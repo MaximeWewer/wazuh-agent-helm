@@ -41,6 +41,8 @@ precedence over `manager.address`; per-entry keys fall back to the manager defau
   <address>{{ .address }}</address>
   <port>{{ .port | default $m.port }}</port>
   <protocol>{{ .protocol | default $m.protocol }}</protocol>
+  <max_retries>{{ .maxRetries | default $m.maxRetries }}</max_retries>
+  <retry_interval>{{ .retryInterval | default $m.retryInterval }}</retry_interval>
 </server>
 {{- end }}
 {{- end }}

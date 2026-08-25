@@ -7,6 +7,11 @@ manager:
   port: 1514
   # -- Communication protocol (tcp or udp)
   protocol: tcp
+  # -- Connection attempts before the agent gives up on a manager and moves to the
+  # next one in the list. Raise it to ride out a manager rolling update.
+  maxRetries: 5
+  # -- Seconds between connection attempts
+  retryInterval: 10
   # -- Additional managers for failover, tried in the order listed.
   # When non-empty this list REPLACES `address` and becomes the full server list;
   # each entry may override `port` and `protocol`, otherwise the values above apply.
@@ -14,6 +19,8 @@ manager:
     # - address: wazuh-master.wazuh.svc.cluster.local
     # - address: wazuh-worker-0.wazuh.svc.cluster.local
     #   protocol: tcp
+    #   maxRetries: 3
+    #   retryInterval: 5
 
 # -- Agent registration settings
 registration:

@@ -58,6 +58,8 @@ helm install wazuh-agent ./charts/v1 \
 | `manager.address`  | Wazuh manager IP/hostname        | `""`    |
 | `manager.port`     | Manager communication port       | `1514`  |
 | `manager.protocol` | Communication protocol (tcp/udp) | `tcp`   |
+| `manager.maxRetries` | Connection attempts before failing over to the next manager | `5` |
+| `manager.retryInterval` | Seconds between connection attempts | `10` |
 | `manager.servers`  | Failover manager list (replaces `address`) | `[]`    |
 
 ### Registration configuration
