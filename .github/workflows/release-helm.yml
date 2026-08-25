@@ -18,6 +18,10 @@ on:
         description: 'Specific Wazuh version to publish (ignored if publish_all_versions is true)'
         required: false
         type: string
+      chart_version:
+        description: 'Override the chart version verbatim (default: <wazuh_version>-DD-MM-YYYY). Ignored if publish_all_versions is true.'
+        required: false
+        type: string
 
 permissions:
   contents: write
@@ -26,6 +30,10 @@ permissions:
 env:
   REGISTRY: ghcr.io
   VERSIONS_FILE: supported-versions.json
+  # Also publish the bare Wazuh version (e.g. 4.14.7) as a mutable rolling tag
+  # pointing at the newest chart build. Set to "false" once every consumer has
+  # moved to the immutable dated tags.
+  PUBLISH_ROLLING_TAG: "true"
 
 jobs:
   prepare:
@@ -36,6 +44,8 @@ jobs:
     outputs:
       matrix: ${{ steps.versions.outputs.matrix }}
       default_version: ${{ steps.versions.outputs.default }}
+      build_date: ${{ steps.versions.outputs.build_date }}
+      default_chart_version: ${{ steps.versions.outputs.default_chart_version }}
       owner_lower: ${{ steps.lowercase.outputs.owner }}
     steps:
       - name: Checkout code
@@ -55,6 +65,13 @@ jobs:
           # Get default version
           DEFAULT_VERSION=$(jq -r '.default_version' ${{ env.VERSIONS_FILE }})
           echo "default=${DEFAULT_VERSION}" >> $GITHUB_OUTPUT
+
+          # Stamp the build date once here, not per matrix job: parallel jobs
+          # running across midnight would otherwise get different dates.
+          BUILD_DATE=$(date -u +%d-%m-%Y)
+          echo "build_date=${BUILD_DATE}" >> $GITHUB_OUTPUT
+          echo "default_chart_version=${DEFAULT_VERSION}-${BUILD_DATE}" >> $GITHUB_OUTPUT
+          echo "Build date (UTC): ${BUILD_DATE}"
 
           if [ "${{ github.event.inputs.publish_all_versions }}" == "true" ] || [ "${{ github.event_name }}" == "pull_request" ]; then
             # All supported versions with their chart_version, sorted by semver descending
@@ -102,27 +119,40 @@ jobs:
         id: prepare_chart
         run: |
           WAZUH_VERSION="${{ matrix.config.version }}"
-          CHART_VERSION="${{ matrix.config.chart_version }}"
-          CHART_PATH="charts/${CHART_VERSION}"
+          CHART_FOLDER="${{ matrix.config.chart_version }}"
+          CHART_PATH="charts/${CHART_FOLDER}"
+
+          # Chart version is decoupled from appVersion so that chart-only fixes
+          # get their own immutable version instead of overwriting an OCI tag
+          # that consumers have already pulled.
+          OVERRIDE="${{ github.event.inputs.chart_version }}"
+          if [ -n "${OVERRIDE}" ] && [ "${{ github.event.inputs.publish_all_versions }}" != "true" ]; then
+            CHART_SEMVER="${OVERRIDE}"
+            echo "Using chart version override: ${CHART_SEMVER}"
+          else
+            CHART_SEMVER="${WAZUH_VERSION}-${{ needs.prepare.outputs.build_date }}"
+          fi
 
           echo "chart_path=${CHART_PATH}" >> $GITHUB_OUTPUT
+          echo "chart_semver=${CHART_SEMVER}" >> $GITHUB_OUTPUT
 
           # Update image tag in values.yaml
           sed -i "s/tag: \"[0-9]*\.[0-9]*\.[0-9]*\"/tag: \"${WAZUH_VERSION}\"/" ${CHART_PATH}/values.yaml
 
-          # Update version and appVersion in Chart.yaml
-          sed -i "s/^version:.*/version: ${WAZUH_VERSION}/" ${CHART_PATH}/Chart.yaml
+          # version tracks the chart build, appVersion tracks Wazuh
+          sed -i "s/^version:.*/version: ${CHART_SEMVER}/" ${CHART_PATH}/Chart.yaml
           sed -i "s/^appVersion:.*/appVersion: \"${WAZUH_VERSION}\"/" ${CHART_PATH}/Chart.yaml
 
           echo "=== Chart configuration ==="
-          echo "Wazuh version: ${WAZUH_VERSION}"
-          echo "Chart folder: ${CHART_PATH}"
+          echo "Wazuh version (appVersion): ${WAZUH_VERSION}"
+          echo "Chart version:              ${CHART_SEMVER}"
+          echo "Chart folder:               ${CHART_PATH}"
           echo ""
           echo "=== values.yaml (image section) ==="
           grep -A2 "^image:" ${CHART_PATH}/values.yaml
           echo ""
           echo "=== Chart.yaml ==="
-          head -5 ${CHART_PATH}/Chart.yaml
+          head -8 ${CHART_PATH}/Chart.yaml
 
       - name: Lint Helm chart
         run: |
@@ -135,11 +165,23 @@ jobs:
       - name: Push Helm chart to OCI registry
         run: |
           WAZUH_VERSION="${{ matrix.config.version }}"
-          CHART_FILE="wazuh-agent-${WAZUH_VERSION}.tgz"
+          CHART_SEMVER="${{ steps.prepare_chart.outputs.chart_semver }}"
+          CHART_PATH="${{ steps.prepare_chart.outputs.chart_path }}"
+          REPO="oci://${{ env.REGISTRY }}/${{ needs.prepare.outputs.owner_lower }}/charts"
 
-          helm push "${CHART_FILE}" oci://${{ env.REGISTRY }}/${{ needs.prepare.outputs.owner_lower }}/charts
+          # Immutable dated tag; helm derives the OCI tag from Chart.yaml version
+          helm push "wazuh-agent-${CHART_SEMVER}.tgz" "${REPO}"
+          echo "Pushed: ${REPO}/wazuh-agent:${CHART_SEMVER}"
 
-          echo "Pushed: oci://${{ env.REGISTRY }}/${{ needs.prepare.outputs.owner_lower }}/charts/wazuh-agent:${WAZUH_VERSION}"
+          if [ "${{ env.PUBLISH_ROLLING_TAG }}" == "true" ]; then
+            # Repackage the same tree under the bare Wazuh version so existing
+            # consumers pinned to e.g. 4.14.7 keep resolving.
+            sed -i "s/^version:.*/version: ${WAZUH_VERSION}/" "${CHART_PATH}/Chart.yaml"
+            helm package "${CHART_PATH}" >/dev/null
+            helm push "wazuh-agent-${WAZUH_VERSION}.tgz" "${REPO}"
+            echo "Pushed rolling tag: ${REPO}/wazuh-agent:${WAZUH_VERSION}"
+            rm -f "wazuh-agent-${WAZUH_VERSION}.tgz"
+          fi
 
       - name: Upload chart artifact
         uses: actions/upload-artifact@v7
@@ -170,6 +212,7 @@ jobs:
         id: release_notes
         run: |
           DEFAULT_VERSION="${{ needs.prepare.outputs.default_version }}"
+          DEFAULT_CHART_VERSION="${{ needs.prepare.outputs.default_chart_version }}"
           MATRIX='${{ needs.prepare.outputs.matrix }}'
 
           PREVIOUS_TAG=$(git tag -l --sort=-version:refname | head -n 1)
@@ -197,7 +240,7 @@ jobs:
 
           \`\`\`bash
           helm install wazuh-agent oci://${{ env.REGISTRY }}/${{ needs.prepare.outputs.owner_lower }}/charts/wazuh-agent \\
-            --version ${DEFAULT_VERSION} \\
+            --version ${DEFAULT_CHART_VERSION} \\
             --namespace wazuh \\
             --create-namespace \\
             --set manager.address=<WAZUH_MANAGER_IP> \\
@@ -212,7 +255,7 @@ jobs:
             git log --pretty=format:"- %s (%h)" ${PREVIOUS_TAG}..HEAD --no-merges -- charts/ | head -20 >> release_notes.md
             echo "" >> release_notes.md
             echo "" >> release_notes.md
-            echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/${PREVIOUS_TAG}...${DEFAULT_VERSION}" >> release_notes.md
+            echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/${PREVIOUS_TAG}...${DEFAULT_CHART_VERSION}" >> release_notes.md
           else
             echo "Initial release" >> release_notes.md
           fi
@@ -222,8 +265,8 @@ jobs:
       - name: Create GitHub release
         uses: softprops/action-gh-release@v3
         with:
-          tag_name: ${{ needs.prepare.outputs.default_version }}
-          name: Wazuh agent ${{ needs.prepare.outputs.default_version }}
+          tag_name: ${{ needs.prepare.outputs.default_chart_version }}
+          name: Wazuh agent ${{ needs.prepare.outputs.default_version }} (chart ${{ needs.prepare.outputs.default_chart_version }})
           body_path: release_notes.md
           draft: false
           prerelease: false
@@ -243,12 +286,13 @@ jobs:
           ## Release summary
 
           ### Published versions
-          | Wazuh version | Chart | OCI tag | Status |
-          |---------------|-------|---------|--------|
+          | Wazuh version | Chart | OCI tag (immutable) | Rolling tag | Status |
+          |---------------|-------|---------------------|-------------|--------|
           EOF
 
           MATRIX='${{ needs.prepare.outputs.matrix }}'
           DEFAULT_VERSION="${{ needs.prepare.outputs.default_version }}"
+          BUILD_DATE="${{ needs.prepare.outputs.build_date }}"
 
           echo "${MATRIX}" | jq -r '.[] | "\(.version)|\(.chart_version)"' | while IFS='|' read version chart_version; do
             if [ "$version" == "$DEFAULT_VERSION" ]; then
@@ -256,7 +300,7 @@ jobs:
             else
               VERSION_LABEL="${version}"
             fi
-            echo "| ${VERSION_LABEL} | ${chart_version} | \`${version}\` | :white_check_mark: |" >> $GITHUB_STEP_SUMMARY
+            echo "| ${VERSION_LABEL} | ${chart_version} | \`${version}-${BUILD_DATE}\` | \`${version}\` | :white_check_mark: |" >> $GITHUB_STEP_SUMMARY
           done
 
           cat << EOF >> $GITHUB_STEP_SUMMARY
@@ -264,14 +308,14 @@ jobs:
           ### Installation
 
           \`\`\`bash
-          helm install wazuh-agent oci://${{ env.REGISTRY }}/${{ needs.prepare.outputs.owner_lower }}/charts/wazuh-agent --version ${DEFAULT_VERSION}
+          helm install wazuh-agent oci://${{ env.REGISTRY }}/${{ needs.prepare.outputs.owner_lower }}/charts/wazuh-agent --version ${DEFAULT_VERSION}-${BUILD_DATE}
           \`\`\`
 
           ### Available versions
           EOF
 
           echo "${MATRIX}" | jq -r '.[].version' | while read version; do
-            echo "- \`${version}\`" >> $GITHUB_STEP_SUMMARY
+            echo "- \`${version}-${BUILD_DATE}\` (appVersion \`${version}\`)" >> $GITHUB_STEP_SUMMARY
           done
 
   cleanup:

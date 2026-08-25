@@ -23,14 +23,24 @@ a Wazuh agent, providing comprehensive visibility into your cluster's security p
 
 ```bash
 helm install wazuh-agent oci://ghcr.io/maximewewer/charts/wazuh-agent \
-  --version 4.14.2 \
+  --version 4.14.7-25-08-2026 \
   --namespace wazuh \
   --create-namespace \
   --set manager.address=<WAZUH_MANAGER_IP> \
   --set registration.password=<REGISTRATION_PASSWORD>
 ```
 
-> **Note:** Chart versions match Wazuh agent versions (e.g., `4.14.2`, `4.13.1`).
+> **Versioning:** the chart version is `<wazuh-version>-DD-MM-YYYY` (for example
+> `4.14.7-25-08-2026`), and `appVersion` carries the Wazuh version alone. A chart-only
+> fix therefore gets its own immutable version instead of overwriting a tag consumers
+> have already pulled.
+>
+> The bare Wazuh version (`4.14.7`) is also published as a **mutable rolling tag** that
+> follows the newest chart build. Pin a dated version when you want reproducible
+> deployments; use the rolling tag when you want the latest chart for a Wazuh release.
+>
+> Dated versions are SemVer prereleases, so range constraints such as `^4.14.0` skip
+> them — reference them exactly.
 
 ### Install from source
 

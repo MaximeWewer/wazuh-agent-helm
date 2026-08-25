@@ -26,7 +26,7 @@ enabling security monitoring, intrusion detection, and log analysis at the node 
 
 ```bash
 helm install wazuh-agent oci://ghcr.io/maximewewer/charts/wazuh-agent \
-  --version 4.14.2 \
+  --version 4.14.7-25-08-2026 \
   --namespace wazuh \
   --create-namespace \
   --set manager.address=<WAZUH_MANAGER_IP> \
