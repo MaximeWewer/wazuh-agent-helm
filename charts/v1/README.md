@@ -80,7 +80,11 @@ helm install wazuh-agent ./charts/v1 \
 | --------------------------- | ------------------------------------------------------- | --------------------------------- |
 | `agentNamePrefix`           | Prefix for agent name (combined with node name)         | `k8s`                             |
 | `configProfile`             | agent.conf profile(s) to apply (list or CSV)            | `[]`                              |
+| `client.notifyTime`         | Seconds between agent check-ins                         | `30`                              |
+| `client.timeReconnect`      | Seconds before reconnecting after a failed check-in     | `120`                             |
 | `client.forceReconnectInterval` | Force reconnect interval, e.g. `1h` (empty = disabled) | `""`                      |
+| `client.autoRestart`        | Restart agent when the manager pushes a new config      | `true`                            |
+| `client.cryptoMethod`       | Message encryption (`aes` or `blowfish`)                | `aes`                             |
 | `localInternalOptions`      | Base content for local_internal_options.conf            | `wazuh_command.remote_commands=1` |
 | `extraOssecConf`            | Additional ossec.conf entries (raw XML)                 | `""`                              |
 | `extraLocalInternalOptions` | Additional local_internal_options.conf entries          | `""`                              |

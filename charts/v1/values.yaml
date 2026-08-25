@@ -46,12 +46,20 @@ registration:
 
 # -- Agent-to-manager connection behaviour
 client:
+  # -- Seconds between agent check-ins to the manager (agent default: 20)
+  notifyTime: 30
+  # -- Seconds to wait before reconnecting after a failed check-in (agent default: 60)
+  timeReconnect: 120
   # -- Force a reconnection at this interval even while communication is healthy.
   # Accepts a time unit suffix (s/m/h/d/w). Empty disables it (agent default: 0).
   # Useful behind a Service or load balancer: agents hold a long-lived TCP
   # connection and otherwise never rebalance onto managers added after they
   # connected.
   forceReconnectInterval: ""
+  # -- Restart the agent automatically when the manager pushes a new shared config
+  autoRestart: true
+  # -- Encryption for agent-to-manager messages (aes or blowfish; blowfish is legacy)
+  cryptoMethod: aes
 
 # -- Agent name prefix (combined with node name)
 agentNamePrefix: "k8s"

@@ -25,13 +25,13 @@ data:
         {{- with .Values.configProfile }}
         <config-profile>{{ if kindIs "string" . }}{{ . }}{{ else }}{{ join "," . }}{{ end }}</config-profile>
         {{- end }}
-        <notify_time>30</notify_time>
-        <time-reconnect>120</time-reconnect>
+        <notify_time>{{ .Values.client.notifyTime }}</notify_time>
+        <time-reconnect>{{ .Values.client.timeReconnect }}</time-reconnect>
         {{- with .Values.client.forceReconnectInterval }}
         <force_reconnect_interval>{{ . }}</force_reconnect_interval>
         {{- end }}
-        <auto_restart>yes</auto_restart>
-        <crypto_method>aes</crypto_method>
+        <auto_restart>{{ ternary "yes" "no" .Values.client.autoRestart }}</auto_restart>
+        <crypto_method>{{ .Values.client.cryptoMethod }}</crypto_method>
       </client>
 
       <client_buffer>
