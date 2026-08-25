@@ -1,0 +1,254 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "wazuh-agent values",
+  "description": "Schema for the wazuh-agent Helm chart values. Chart-owned settings are validated strictly; Kubernetes passthrough blocks (resources, affinity, securityContext, volumes) stay open so any upstream field remains usable.",
+  "type": "object",
+  "additionalProperties": false,
+
+  "definitions": {
+    "stringOrStringList": {
+      "description": "Either a YAML list of strings or a single comma-separated string.",
+      "oneOf": [
+        { "type": "array", "items": { "type": "string" } },
+        { "type": "string" }
+      ]
+    },
+    "port": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 65535
+    },
+    "retryCount": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1000000000
+    },
+    "pullPolicy": {
+      "type": "string",
+      "enum": ["Always", "IfNotPresent", "Never"]
+    },
+    "imageSpec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repository", "tag"],
+      "properties": {
+        "repository": { "type": "string", "minLength": 1 },
+        "tag": { "type": "string", "minLength": 1 },
+        "pullPolicy": { "$ref": "#/definitions/pullPolicy" }
+      }
+    },
+    "stringMap": {
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    },
+    "persistenceEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "type": {
+          "type": "string",
+          "enum": ["hostPath", "emptyDir", "pvc"]
+        },
+        "hostPath": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["path"],
+          "properties": {
+            "path": { "type": "string", "minLength": 1 },
+            "type": { "type": "string" }
+          }
+        },
+        "emptyDir": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "medium": { "type": "string", "enum": ["", "Memory"] },
+            "sizeLimit": { "type": "string" }
+          }
+        },
+        "pvc": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "storageClass": { "type": "string" },
+            "accessModes": { "type": "array", "items": { "type": "string" } },
+            "size": { "type": "string" }
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "enabled": { "const": true } }, "required": ["enabled"] },
+          "then": {
+            "required": ["type"],
+            "description": "An enabled persistence path must declare a volume type."
+          }
+        },
+        {
+          "if": { "properties": { "type": { "const": "hostPath" } }, "required": ["type"] },
+          "then": { "required": ["hostPath"] }
+        },
+        {
+          "if": { "properties": { "type": { "const": "pvc" } }, "required": ["type"] },
+          "then": { "required": ["pvc"] }
+        }
+      ]
+    }
+  },
+
+  "properties": {
+    "global": {
+      "type": "object",
+      "description": "Injected by Helm when this chart is used as a dependency."
+    },
+
+    "manager": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "address": { "type": "string" },
+        "port": { "$ref": "#/definitions/port" },
+        "protocol": { "type": "string", "enum": ["tcp", "udp"] },
+        "maxRetries": { "$ref": "#/definitions/retryCount" },
+        "retryInterval": { "$ref": "#/definitions/retryCount" },
+        "servers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["address"],
+            "properties": {
+              "address": { "type": "string", "minLength": 1 },
+              "port": { "$ref": "#/definitions/port" },
+              "protocol": { "type": "string", "enum": ["tcp", "udp"] },
+              "maxRetries": { "$ref": "#/definitions/retryCount" },
+              "retryInterval": { "$ref": "#/definitions/retryCount" }
+            }
+          }
+        }
+      }
+    },
+
+    "registration": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "server": { "type": "string" },
+        "port": { "$ref": "#/definitions/port" },
+        "password": { "type": "string" },
+        "existingSecret": { "type": "string" },
+        "existingSecretKey": { "type": "string" },
+        "groups": { "$ref": "#/definitions/stringOrStringList" },
+        "sslCipher": { "type": "string" }
+      }
+    },
+
+    "client": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "notifyTime": { "type": "integer", "minimum": 1 },
+        "timeReconnect": { "type": "integer", "minimum": 1 },
+        "forceReconnectInterval": {
+          "type": "string",
+          "pattern": "^$|^[0-9]+[smhdw]?$",
+          "description": "Empty to disable, or a positive number with an optional s/m/h/d/w suffix."
+        },
+        "autoRestart": { "type": "boolean" },
+        "cryptoMethod": {
+          "type": "string",
+          "enum": ["aes", "blowfish"],
+          "description": "Encryption for agent-to-manager messages. blowfish is legacy."
+        }
+      }
+    },
+
+    "agentNamePrefix": {
+      "type": "string",
+      "pattern": "^$|^[A-Za-z0-9._-]+$",
+      "description": "Joined to the node name with a dash; the result must stay a valid Wazuh agent name."
+    },
+    "configProfile": { "$ref": "#/definitions/stringOrStringList" },
+
+    "image": { "$ref": "#/definitions/imageSpec" },
+    "initImage": { "$ref": "#/definitions/imageSpec" },
+    "imagePullSecrets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name"],
+        "properties": { "name": { "type": "string" } }
+      }
+    },
+
+    "podSecurityContext": { "type": "object" },
+    "securityContext": { "type": "object" },
+    "resources": { "type": "object" },
+    "nodeSelector": { "$ref": "#/definitions/stringMap" },
+    "tolerations": { "type": "array", "items": { "type": "object" } },
+    "affinity": { "type": "object" },
+    "priorityClassName": { "type": "string" },
+    "updateStrategy": { "type": "object" },
+    "terminationGracePeriodSeconds": { "type": "integer", "minimum": 0 },
+    "podLabels": { "$ref": "#/definitions/stringMap" },
+    "podAnnotations": { "$ref": "#/definitions/stringMap" },
+
+    "persistence": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "etc": { "$ref": "#/definitions/persistenceEntry" },
+        "logs": { "$ref": "#/definitions/persistenceEntry" },
+        "queue": { "$ref": "#/definitions/persistenceEntry" },
+        "var": { "$ref": "#/definitions/persistenceEntry" },
+        "activeResponse": { "$ref": "#/definitions/persistenceEntry" }
+      }
+    },
+
+    "extraVolumes": { "type": "array", "items": { "type": "object" } },
+    "extraVolumeMounts": { "type": "array", "items": { "type": "object" } },
+
+    "localInternalOptions": { "type": "string" },
+    "extraOssecConf": { "type": "string" },
+    "extraLocalInternalOptions": { "type": "string" },
+    "activeResponseScripts": { "$ref": "#/definitions/stringMap" },
+
+    "serviceAccount": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "create": { "type": "boolean" },
+        "name": { "type": "string" },
+        "annotations": { "$ref": "#/definitions/stringMap" }
+      }
+    },
+
+    "rbac": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "create": { "type": "boolean" }
+      }
+    },
+
+    "podDisruptionBudget": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "minAvailable": { "type": ["integer", "string"] },
+        "maxUnavailable": { "type": ["integer", "string"] }
+      }
+    },
+
+    "networkPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "extraEgress": { "type": "array", "items": { "type": "object" } }
+      }
+    }
+  }
+}

@@ -180,6 +180,33 @@ For mounting additional host paths (e.g., host logs to monitor):
 | `networkPolicy.enabled`            | Enable NetworkPolicy       | `false` |
 | `networkPolicy.extraEgress`        | Additional egress rules    | `[]`    |
 
+### Values validation
+
+The chart ships a `values.schema.json`, so `helm install`, `helm upgrade`, `helm template`
+and `helm lint` reject bad values before rendering anything:
+
+```console
+$ helm install wazuh-agent ./charts/v1 --set client.cryptoMethod=AES
+Error: values don't meet the specifications of the schema(s) in the following chart(s):
+wazuh-agent:
+- at '/client/cryptoMethod': value must be one of 'aes', 'blowfish'
+```
+
+Unknown keys are rejected too, which catches typos that used to fail silently
+(`--set manger.address=...` no longer renders an agent with no manager).
+
+Constraints worth knowing, since a few report only as `'allOf' failed`:
+
+- A `persistence.*` entry with `enabled: true` must also set `type`.
+- `type: hostPath` requires a `hostPath.path`; `type: pvc` requires a `pvc` block.
+- Every entry in `manager.servers` must have an `address`.
+- `client.forceReconnectInterval` is empty or a number with an optional `s`/`m`/`h`/`d`/`w` suffix.
+
+Kubernetes passthrough blocks (`resources`, `affinity`, `tolerations`,
+`securityContext`, `podSecurityContext`, `updateStrategy`, `extraVolumes`,
+`extraVolumeMounts`, `networkPolicy.extraEgress`) are deliberately left open so any
+upstream field stays usable.
+
 ## Examples
 
 Ready-to-use values files live in the [`examples/`](./examples/) directory:
