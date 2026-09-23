@@ -72,6 +72,12 @@ configProfile: []
   # - production
   # - debian
 
+# -- Override the name of the chart
+nameOverride: ~
+
+# -- Override the expanded name of the chart
+fullnameOverride: ~
+
 # -- Container image configuration
 image:
   repository: wazuh/wazuh-agent
