@@ -75,7 +75,7 @@ configProfile: []
 # -- Container image configuration
 image:
   repository: wazuh/wazuh-agent
-  tag: "4.14.7"
+  tag: "4.14.8"
   pullPolicy: IfNotPresent
 
 # -- Image pull secrets for private registries
