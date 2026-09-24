@@ -176,8 +176,8 @@
     },
     "configProfile": { "$ref": "#/definitions/stringOrStringList" },
 
-    "nameOverride": { "type": "string" },
-    "fullnameOverride": { "type": "string" },
+    "nameOverride": { "type": ["string", "null"] },
+    "fullnameOverride": { "type": ["string", "null"] },
     "image": { "$ref": "#/definitions/imageSpec" },
     "initImage": { "$ref": "#/definitions/imageSpec" },
     "imagePullSecrets": {
