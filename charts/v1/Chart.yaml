@@ -3,8 +3,8 @@ name: wazuh-agent
 description: A Helm chart for deploying Wazuh agents on Kubernetes as a DaemonSet.
 type: application
 
-version: 4.14.8
-appVersion: "4.14.8"
+version: 4.14.9
+appVersion: "4.14.9"
 
 keywords:
   - wazuh
