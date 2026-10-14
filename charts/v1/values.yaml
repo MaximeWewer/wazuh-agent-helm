@@ -81,7 +81,7 @@ fullnameOverride: ~
 # -- Container image configuration
 image:
   repository: wazuh/wazuh-agent
-  tag: "4.14.8"
+  tag: "4.14.9"
   pullPolicy: IfNotPresent
 
 # -- Image pull secrets for private registries
