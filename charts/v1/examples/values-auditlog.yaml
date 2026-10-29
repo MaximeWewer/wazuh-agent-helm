@@ -2,7 +2,7 @@
 # Deploy on control-plane nodes to collect K8s audit logs
 #
 # Usage:
-#   helm install wazuh-audit ./wazuh-agent -f examples/values-auditlog.yaml \
+#   helm install wazuh-audit ./charts/v1 -f charts/v1/examples/values-auditlog.yaml \
 #     --set manager.address=<MANAGER_IP> \
 #     --set registration.password=<PASSWORD>
 
@@ -36,12 +36,10 @@ tolerations:
 persistence:
   etc:
     enabled: true
-    type: pvc
-    pvc:
-      storageClass: "" # Empty for default storage class
-      accessModes:
-        - ReadWriteOnce
-      size: 100Mi
+    type: hostPath
+    hostPath:
+      path: /var/lib/wazuh-agent/etc
+      type: DirectoryOrCreate
   logs:
     enabled: true
     type: hostPath
@@ -74,7 +72,7 @@ extraOssecConf: |
     <log_format>json</log_format>
     <location>/host/var/log/kubernetes/audit.log</location>
   </localfile>
-  <!-- API server logs -->
+  <!-- API server logs (CRI format "<time> <stream> <tag> <msg>", ingested as plain lines) -->
   <localfile>
     <log_format>syslog</log_format>
     <location>/host/var/log/pods/kube-system_kube-apiserver-*/*/*.log</location>

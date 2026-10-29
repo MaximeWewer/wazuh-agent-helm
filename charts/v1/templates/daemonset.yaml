@@ -75,6 +75,8 @@ spec:
             preStop:
               exec:
                 command: ["/bin/sh", "-c", "/var/ossec/bin/ossec-control stop || true; sleep 2"]
+          env:
+            {{- include "wazuh-agent.nodeNameEnv" . | nindent 12 }}
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
           resources:

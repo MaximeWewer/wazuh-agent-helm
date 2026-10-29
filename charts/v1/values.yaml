@@ -160,6 +160,8 @@ podAnnotations: {}
 # Each path can be configured independently with its own volume type.
 # Binaries (bin, lib, ruleset, wodles) come from the image and don't need persistence.
 # Supported types: hostPath, emptyDir, pvc
+# etc is always mounted: when its persistence is disabled it uses an emptyDir,
+# so the agent re-registers each time its pod is recreated.
 persistence:
   # -- Configuration files (/var/ossec/etc)
   # Contains: ossec.conf, client.keys (agent registration), internal_options.conf
@@ -177,13 +179,18 @@ persistence:
     #   medium: ""        # "" or "Memory"
     #   sizeLimit: 100Mi
 
-    # -- PVC configuration
+    # -- PVC configuration (keeps agent data off the node disk)
+    # One claim is shared by every agent; each node gets its own sub-directory
+    # (subPathExpr: $(NODE_NAME)), so the claim needs ReadWriteMany storage
+    # (NFS, CephFS, EFS...) as soon as the DaemonSet runs on more than one node.
+    # The claim is kept on helm uninstall (helm.sh/resource-policy: keep).
     # type: pvc
     # pvc:
-    #   storageClass: ""  # Empty for default storage class
+    #   existingClaim: ""  # Use an existing claim instead of creating one
+    #   storageClass: ""   # Empty for default storage class
     #   accessModes:
-    #     - ReadWriteOnce
-    #   size: 100Mi
+    #     - ReadWriteMany
+    #   size: 1Gi
 
   # -- Agent logs (/var/ossec/logs)
   # Contains: ossec.log, active-responses.log

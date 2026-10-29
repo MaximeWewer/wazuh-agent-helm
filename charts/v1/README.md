@@ -165,19 +165,27 @@ Each Wazuh data directory can be configured independently with its own volume ty
 Binaries (`bin`, `lib`, `ruleset`, `wodles`) come from the image and don't need
 persistence.
 
-Supported volume types: `hostPath`, `emptyDir`, `pvc`
+Supported volume types: `hostPath`, `emptyDir`, `pvc`.
 
-| Parameter                            | Description                            | Default                     |
-| ------------------------------------ | -------------------------------------- | --------------------------- |
-| `persistence.etc.enabled`            | Enable persistence for /var/ossec/etc  | `true`                      |
-| `persistence.etc.type`               | Volume type                            | `hostPath`                  |
-| `persistence.etc.hostPath.path`      | Host path                              | `/var/lib/wazuh-agent/etc`  |
-| `persistence.logs.enabled`           | Enable persistence for logs            | `true`                      |
-| `persistence.logs.type`              | Volume type                            | `hostPath`                  |
-| `persistence.logs.hostPath.path`     | Host path                              | `/var/lib/wazuh-agent/logs` |
-| `persistence.queue.enabled`          | Enable persistence for queue           | `false`                     |
-| `persistence.var.enabled`            | Enable persistence for var             | `false`                     |
-| `persistence.activeResponse.enabled` | Enable persistence for active-response | `false`                     |
+`/var/ossec/etc` is always mounted, since the init containers render `ossec.conf`
+into it. With its persistence disabled it is an `emptyDir`, so the agent
+re-registers with the manager each time its pod is recreated.
+
+| Parameter                              | Description                                                   | Default             |
+| -------------------------------------- | ------------------------------------------------------------- | ------------------- |
+| `persistence.etc.enabled`              | Enable persistence for /var/ossec/etc                         | `false`             |
+| `persistence.logs.enabled`             | Enable persistence for /var/ossec/logs                        | `false`             |
+| `persistence.queue.enabled`            | Enable persistence for /var/ossec/queue                       | `false`             |
+| `persistence.var.enabled`              | Enable persistence for /var/ossec/var                         | `false`             |
+| `persistence.activeResponse.enabled`   | Enable persistence for /var/ossec/active-response             | `false`             |
+| `persistence.<path>.type`              | Volume type (`hostPath`, `emptyDir` or `pvc`), required if on | -                   |
+| `persistence.<path>.hostPath.path`     | Host path, required with `type: hostPath`                     | -                   |
+| `persistence.<path>.hostPath.type`     | hostPath type                                                 | `DirectoryOrCreate` |
+| `persistence.<path>.emptyDir`          | emptyDir options (`medium`, `sizeLimit`)                      | `{}`                |
+| `persistence.<path>.pvc.existingClaim` | Use an existing claim instead of creating one                 | `""`                |
+| `persistence.<path>.pvc.storageClass`  | Storage class (empty for the default one)                     | `""`                |
+| `persistence.<path>.pvc.accessModes`   | Access modes of the created claim                             | `[ReadWriteMany]`   |
+| `persistence.<path>.pvc.size`          | Size of the created claim                                     | `1Gi`               |
 
 ### Extra volumes
 
@@ -215,7 +223,7 @@ Unknown keys are rejected too, which catches typos that used to fail silently
 Constraints worth knowing, since a few report only as `'allOf' failed`:
 
 - A `persistence.*` entry with `enabled: true` must also set `type`.
-- `type: hostPath` requires a `hostPath.path`; `type: pvc` requires a `pvc` block.
+- `type: hostPath` requires a `hostPath.path`.
 - Every entry in `manager.servers` must have an `address`.
 - `client.forceReconnectInterval` is empty or a number with an optional `s`/`m`/`h`/`d`/`w` suffix.
 
@@ -332,12 +340,38 @@ See `examples/values-auditlog.yaml` for monitoring Kubernetes audit logs on cont
 ```bash
 helm install wazuh-audit ./charts/v1 \
   --namespace wazuh \
-  -f examples/values-auditlog.yaml \
+  -f charts/v1/examples/values-auditlog.yaml \
   --set manager.address=192.168.1.100 \
   --set registration.password=my-secure-password
 ```
 
-### Using PVC for persistence
+### Persisting agent state
+
+Persisting `/var/ossec/etc` lets each agent keep its registration (`client.keys`)
+across pod restarts instead of re-enrolling.
+
+On the node itself, with `hostPath`:
+
+```yaml
+persistence:
+  etc:
+    enabled: true
+    type: hostPath
+    hostPath:
+      path: /var/lib/wazuh-agent/etc
+  logs:
+    enabled: true
+    type: hostPath
+    hostPath:
+      path: /var/lib/wazuh-agent/logs
+```
+
+Off the node, with a PVC. A DaemonSet cannot create one claim per pod, so the chart
+creates one claim per path (`<fullname>-etc`, `<fullname>-logs`, ...) shared by every
+agent, and each node writes to its own sub-directory (`subPathExpr: $(NODE_NAME)`).
+The storage class must therefore support `ReadWriteMany` (NFS, CephFS, EFS, ...)
+as soon as the DaemonSet runs on more than one node. Claims are annotated
+`helm.sh/resource-policy: keep` so registrations survive a `helm uninstall`.
 
 ```yaml
 persistence:
@@ -345,34 +379,30 @@ persistence:
     enabled: true
     type: pvc
     pvc:
-      storageClass: "standard"
-      accessModes:
-        - ReadWriteOnce
-      size: 100Mi
+      storageClass: nfs-client
+      size: 1Gi
   logs:
     enabled: true
     type: pvc
     pvc:
-      storageClass: "standard"
-      accessModes:
-        - ReadWriteOnce
-      size: 500Mi
+      existingClaim: wazuh-agent-logs # pre-created RWX claim
 ```
 
 ## Architecture
 
 The chart deploys the following resources:
 
-| Resource            | Description                                             |
-| ------------------- | ------------------------------------------------------- |
-| DaemonSet           | Runs a Wazuh agent pod on each node                     |
-| ConfigMap           | Contains `ossec.conf` and `local_internal_options.conf` |
-| ConfigMap (scripts) | Contains custom active response scripts (if defined)    |
-| Secret              | Stores the registration password (`authd.pass`)         |
-| ServiceAccount      | Pod identity                                            |
-| Role/RoleBinding    | RBAC permissions                                        |
-| PodDisruptionBudget | High availability (optional)                            |
-| NetworkPolicy       | Network security (optional)                             |
+| Resource              | Description                                               |
+| --------------------- | --------------------------------------------------------- |
+| DaemonSet             | Runs a Wazuh agent pod on each node                       |
+| ConfigMap             | Contains `ossec.conf` and `local_internal_options.conf`   |
+| ConfigMap (scripts)   | Contains custom active response scripts (if defined)      |
+| Secret                | Stores the registration password (`authd.pass`)           |
+| ServiceAccount        | Pod identity                                              |
+| Role/RoleBinding      | RBAC permissions                                          |
+| PodDisruptionBudget   | High availability (optional)                              |
+| NetworkPolicy         | Network security (optional)                               |
+| PersistentVolumeClaim | Shared agent state, one sub-directory per node (optional) |
 
 ### Init containers
 

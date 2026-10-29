@@ -1,0 +1,26 @@
+{{- range $key, $dir := include "wazuh-agent.persistencePaths" . | fromYaml }}
+{{- $config := get $.Values.persistence $key }}
+{{- $pvc := $config.pvc | default dict }}
+{{- if and $config.enabled (eq $config.type "pvc") (not $pvc.existingClaim) }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "wazuh-agent.claimName" (dict "dir" $dir "config" $config "root" $) }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "wazuh-agent.labels" $ | nindent 4 }}
+  annotations:
+    # Holds every agent's registration (client.keys): keep it on uninstall
+    helm.sh/resource-policy: keep
+spec:
+  accessModes:
+    {{- toYaml ($pvc.accessModes | default (list "ReadWriteMany")) | nindent 4 }}
+  {{- with $pvc.storageClass }}
+  storageClassName: {{ . }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ $pvc.size | default "1Gi" }}
+{{- end }}
+{{- end }}

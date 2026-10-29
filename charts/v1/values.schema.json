@@ -71,6 +71,7 @@
           "type": "object",
           "additionalProperties": false,
           "properties": {
+            "existingClaim": { "type": "string" },
             "storageClass": { "type": "string" },
             "accessModes": { "type": "array", "items": { "type": "string" } },
             "size": { "type": "string" }
@@ -88,10 +89,6 @@
         {
           "if": { "properties": { "type": { "const": "hostPath" } }, "required": ["type"] },
           "then": { "required": ["hostPath"] }
-        },
-        {
-          "if": { "properties": { "type": { "const": "pvc" } }, "required": ["type"] },
-          "then": { "required": ["pvc"] }
         }
       ]
     }

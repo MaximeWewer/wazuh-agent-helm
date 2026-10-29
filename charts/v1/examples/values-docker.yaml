@@ -5,7 +5,7 @@
 # (logs live under /var/log/pods).
 #
 # Usage:
-#   helm install wazuh-docker ./wazuh-agent -f examples/values-docker.yaml \
+#   helm install wazuh-docker ./charts/v1 -f charts/v1/examples/values-docker.yaml \
 #     --set manager.address=<MANAGER_IP> \
 #     --set registration.password=<PASSWORD>
 

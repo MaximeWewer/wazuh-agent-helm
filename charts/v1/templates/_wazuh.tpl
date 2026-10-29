@@ -48,45 +48,93 @@ precedence over `manager.address`; per-entry keys fall back to the manager defau
 {{- end }}
 
 {{/*
-Helper to generate a volume definition based on type
-Usage: include "wazuh-agent.volume" (dict "name" "wazuh-etc" "config" .Values.persistence.etc "fullname" (include "wazuh-agent.fullname" .))
+Persistence paths: values key -> directory under /var/ossec.
+The volume for a path is named "wazuh-<dir>".
 */}}
-{{- define "wazuh-agent.volume" -}}
-- name: {{ .name }}
-{{- if eq .config.type "hostPath" }}
-  hostPath:
-    path: {{ .config.hostPath.path }}
-    type: {{ .config.hostPath.type | default "DirectoryOrCreate" }}
-{{- else if eq .config.type "emptyDir" }}
-  emptyDir:
-    {{- with .config.emptyDir }}
-    {{- toYaml . | nindent 4 }}
-    {{- end }}
-{{- else if eq .config.type "pvc" }}
-  persistentVolumeClaim:
-    claimName: {{ .fullname }}-{{ trimPrefix "wazuh-" .name }}
+{{- define "wazuh-agent.persistencePaths" -}}
+etc: etc
+logs: logs
+queue: queue
+var: var
+activeResponse: active-response
 {{- end }}
+
+{{/*
+Whether a persistence path gets a volume. etc is always mounted, since the init
+containers render ossec.conf into it; it falls back to an emptyDir when its
+persistence is disabled.
+*/}}
+{{- define "wazuh-agent.pathMounted" -}}
+{{- if or .config.enabled (eq .key "etc") }}true{{ end }}
+{{- end }}
+
+{{/*
+PVC claim name for a persistence path
+Usage: include "wazuh-agent.claimName" (dict "dir" "etc" "config" .Values.persistence.etc "root" $)
+*/}}
+{{- define "wazuh-agent.claimName" -}}
+{{- $pvc := .config.pvc | default dict }}
+{{- $pvc.existingClaim | default (printf "%s-%s" (include "wazuh-agent.fullname" .root) .dir) }}
+{{- end }}
+
+{{/*
+NODE_NAME env var, used by subPathExpr to give each node its own directory
+on a shared PVC
+*/}}
+{{- define "wazuh-agent.nodeNameEnv" -}}
+- name: NODE_NAME
+  valueFrom:
+    fieldRef:
+      fieldPath: spec.nodeName
 {{- end }}
 
 {{/*
 Generate volumes from persistence configuration
 */}}
 {{- define "wazuh-agent.volumes" -}}
-{{- $fullname := include "wazuh-agent.fullname" . -}}
-{{- if .Values.persistence.etc.enabled }}
-{{ include "wazuh-agent.volume" (dict "name" "wazuh-etc" "config" .Values.persistence.etc "fullname" $fullname) }}
+{{- include "wazuh-agent.persistenceVolumes" . | trim }}
 {{- end }}
-{{- if .Values.persistence.logs.enabled }}
-{{ include "wazuh-agent.volume" (dict "name" "wazuh-logs" "config" .Values.persistence.logs "fullname" $fullname) }}
+
+{{- define "wazuh-agent.persistenceVolumes" -}}
+{{- range $key, $dir := include "wazuh-agent.persistencePaths" . | fromYaml }}
+{{- $config := get $.Values.persistence $key }}
+{{- if include "wazuh-agent.pathMounted" (dict "key" $key "config" $config) }}
+- name: wazuh-{{ $dir }}
+{{- if not $config.enabled }}
+  emptyDir: {}
+{{- else if eq $config.type "hostPath" }}
+  hostPath:
+    path: {{ $config.hostPath.path }}
+    type: {{ $config.hostPath.type | default "DirectoryOrCreate" }}
+{{- else if eq $config.type "emptyDir" }}
+  emptyDir:
+    {{- with $config.emptyDir }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+{{- else if eq $config.type "pvc" }}
+  persistentVolumeClaim:
+    claimName: {{ include "wazuh-agent.claimName" (dict "dir" $dir "config" $config "root" $) }}
 {{- end }}
-{{- if .Values.persistence.queue.enabled }}
-{{ include "wazuh-agent.volume" (dict "name" "wazuh-queue" "config" .Values.persistence.queue "fullname" $fullname) }}
 {{- end }}
-{{- if .Values.persistence.var.enabled }}
-{{ include "wazuh-agent.volume" (dict "name" "wazuh-var" "config" .Values.persistence.var "fullname" $fullname) }}
 {{- end }}
-{{- if .Values.persistence.activeResponse.enabled }}
-{{ include "wazuh-agent.volume" (dict "name" "wazuh-active-response" "config" .Values.persistence.activeResponse "fullname" $fullname) }}
+{{- end }}
+
+{{/*
+Generate volumeMounts for persistence paths
+Usage: include "wazuh-agent.persistenceMounts" (dict "root" $ "base" "/var/ossec")
+*/}}
+{{- define "wazuh-agent.persistenceMounts" -}}
+{{- $root := .root }}
+{{- $base := .base }}
+{{- range $key, $dir := include "wazuh-agent.persistencePaths" $root | fromYaml }}
+{{- $config := get $root.Values.persistence $key }}
+{{- if include "wazuh-agent.pathMounted" (dict "key" $key "config" $config) }}
+- name: wazuh-{{ $dir }}
+  mountPath: {{ $base }}/{{ $dir }}
+  {{- if and $config.enabled (eq $config.type "pvc") }}
+  subPathExpr: $(NODE_NAME)
+  {{- end }}
+{{- end }}
 {{- end }}
 {{- end }}
 
@@ -94,54 +142,15 @@ Generate volumes from persistence configuration
 Generate volumeMounts for main container
 */}}
 {{- define "wazuh-agent.volumeMounts" -}}
-{{- if .Values.persistence.etc.enabled }}
-- name: wazuh-etc
-  mountPath: /var/ossec/etc
-{{- end }}
-{{- if .Values.persistence.logs.enabled }}
-- name: wazuh-logs
-  mountPath: /var/ossec/logs
-{{- end }}
-{{- if .Values.persistence.queue.enabled }}
-- name: wazuh-queue
-  mountPath: /var/ossec/queue
-{{- end }}
-{{- if .Values.persistence.var.enabled }}
-- name: wazuh-var
-  mountPath: /var/ossec/var
-{{- end }}
-{{- if .Values.persistence.activeResponse.enabled }}
-- name: wazuh-active-response
-  mountPath: /var/ossec/active-response
-{{- end }}
+{{- include "wazuh-agent.persistenceMounts" (dict "root" . "base" "/var/ossec") | trim }}
 {{- end }}
 
 {{/*
-Generate volumeMounts for init containers (same paths, used for seeding)
+Generate volumeMounts for init containers (same volumes under /mnt, used for seeding)
 */}}
 {{- define "wazuh-agent.initVolumeMounts" -}}
-{{- if .Values.persistence.etc.enabled }}
-- name: wazuh-etc
-  mountPath: /mnt/etc
+{{- include "wazuh-agent.persistenceMounts" (dict "root" . "base" "/mnt") | trim }}
 {{- end }}
-{{- if .Values.persistence.logs.enabled }}
-- name: wazuh-logs
-  mountPath: /mnt/logs
-{{- end }}
-{{- if .Values.persistence.queue.enabled }}
-- name: wazuh-queue
-  mountPath: /mnt/queue
-{{- end }}
-{{- if .Values.persistence.var.enabled }}
-- name: wazuh-var
-  mountPath: /mnt/var
-{{- end }}
-{{- if .Values.persistence.activeResponse.enabled }}
-- name: wazuh-active-response
-  mountPath: /mnt/active-response
-{{- end }}
-{{- end }}
-
 
 {{/*
 Init container: cleanup stale files
@@ -152,6 +161,8 @@ Init container: cleanup stale files
   imagePullPolicy: {{ .Values.initImage.pullPolicy }}
   securityContext:
     runAsUser: 0
+  env:
+    {{- include "wazuh-agent.nodeNameEnv" . | nindent 4 }}
   command: ["/bin/sh", "-c"]
   args:
     - |
@@ -172,6 +183,8 @@ Init container: seed persistent volumes with initial data from image
   imagePullPolicy: {{ .Values.image.pullPolicy }}
   securityContext:
     runAsUser: 0
+  env:
+    {{- include "wazuh-agent.nodeNameEnv" . | nindent 4 }}
   command: ["/bin/sh", "-c"]
   args:
     - |
@@ -221,6 +234,8 @@ Init container: fix permissions on volumes
   imagePullPolicy: {{ .Values.initImage.pullPolicy }}
   securityContext:
     runAsUser: 0
+  env:
+    {{- include "wazuh-agent.nodeNameEnv" . | nindent 4 }}
   command: ["/bin/sh", "-c"]
   args:
     - |
@@ -245,6 +260,7 @@ Init container: write ossec config
   securityContext:
     runAsUser: 0
   env:
+    {{- include "wazuh-agent.nodeNameEnv" . | nindent 4 }}
     - name: WAZUH_REGISTRATION_SERVER
       value: {{ include "wazuh-agent.registrationServer" . | quote }}
     - name: WAZUH_REGISTRATION_PORT
@@ -288,6 +304,8 @@ Init container: copy local options
   imagePullPolicy: {{ .Values.initImage.pullPolicy }}
   securityContext:
     runAsUser: 0
+  env:
+    {{- include "wazuh-agent.nodeNameEnv" . | nindent 4 }}
   command: ["/bin/sh", "-c"]
   args:
     - |
@@ -310,6 +328,8 @@ Init container: copy authd pass
   imagePullPolicy: {{ .Values.initImage.pullPolicy }}
   securityContext:
     runAsUser: 0
+  env:
+    {{- include "wazuh-agent.nodeNameEnv" . | nindent 4 }}
   command: ["/bin/sh", "-c"]
   args:
     - |
@@ -333,6 +353,8 @@ Init container: copy custom active response scripts
   imagePullPolicy: {{ .Values.initImage.pullPolicy }}
   securityContext:
     runAsUser: 0
+  env:
+    {{- include "wazuh-agent.nodeNameEnv" . | nindent 4 }}
   command: ["/bin/sh", "-c"]
   args:
     - |
