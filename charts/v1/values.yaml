@@ -133,7 +133,7 @@ priorityClassName: ""
 
 # -- Run the agent in the node's network namespace so the manager sees the
 # stable node IP instead of the pod IP. Pods then share the host network
-# stack, and the NetworkPolicy below no longer applies to them.
+# stack, and the NetworkPolicy below is not rendered (it would not apply).
 hostNetwork: false
 
 # -- Pod DNS policy. When empty, defaults to ClusterFirstWithHostNet if
@@ -260,7 +260,8 @@ podDisruptionBudget:
   minAvailable: 1
   # maxUnavailable: 1
 
-# -- NetworkPolicy configuration (has no effect on pods with hostNetwork: true)
+# -- NetworkPolicy configuration (not rendered when hostNetwork is true,
+# since policies do not apply to host-network pods)
 networkPolicy:
   enabled: false
   extraEgress: []

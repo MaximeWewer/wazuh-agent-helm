@@ -194,7 +194,7 @@ For mounting additional host paths (e.g., host logs to monitor):
 | ---------------------------------- | ---------------------------------------------------- | ------- |
 | `podDisruptionBudget.enabled`      | Enable PodDisruptionBudget                           | `false` |
 | `podDisruptionBudget.minAvailable` | Minimum available pods                               | `1`     |
-| `networkPolicy.enabled`            | Enable NetworkPolicy (ignored by `hostNetwork` pods) | `false` |
+| `networkPolicy.enabled`            | Enable NetworkPolicy (skipped with `hostNetwork`)    | `false` |
 | `networkPolicy.extraEgress`        | Additional egress rules                              | `[]`    |
 
 ### Values validation
