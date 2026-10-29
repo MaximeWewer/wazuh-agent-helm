@@ -196,6 +196,11 @@
     "tolerations": { "type": "array", "items": { "type": "object" } },
     "affinity": { "type": "object" },
     "priorityClassName": { "type": "string" },
+    "hostNetwork": { "type": "boolean" },
+    "dnsPolicy": {
+      "type": "string",
+      "enum": ["", "ClusterFirst", "ClusterFirstWithHostNet", "Default", "None"]
+    },
     "updateStrategy": { "type": "object" },
     "terminationGracePeriodSeconds": { "type": "integer", "minimum": 0 },
     "podLabels": { "$ref": "#/definitions/stringMap" },

@@ -131,6 +131,16 @@ affinity: {}
 # -- Priority class name
 priorityClassName: ""
 
+# -- Run the agent in the node's network namespace so the manager sees the
+# stable node IP instead of the pod IP. Pods then share the host network
+# stack, and the NetworkPolicy below no longer applies to them.
+hostNetwork: false
+
+# -- Pod DNS policy. When empty, defaults to ClusterFirstWithHostNet if
+# hostNetwork is enabled (keeps in-cluster service names resolvable), and to
+# the Kubernetes default (ClusterFirst) otherwise.
+dnsPolicy: ""
+
 # -- Update strategy for DaemonSet
 updateStrategy:
   type: RollingUpdate
@@ -250,7 +260,7 @@ podDisruptionBudget:
   minAvailable: 1
   # maxUnavailable: 1
 
-# -- NetworkPolicy configuration
+# -- NetworkPolicy configuration (has no effect on pods with hostNetwork: true)
 networkPolicy:
   enabled: false
   extraEgress: []

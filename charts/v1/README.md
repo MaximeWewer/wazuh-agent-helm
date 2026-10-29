@@ -116,16 +116,18 @@ helm install wazuh-agent ./charts/v1 \
 
 ### Resources and scheduling
 
-| Parameter                   | Description         | Default                   |
-| --------------------------- | ------------------- | ------------------------- |
-| `resources.limits.cpu`      | CPU limit           | `200m`                    |
-| `resources.limits.memory`   | Memory limit        | `256Mi`                   |
-| `resources.requests.cpu`    | CPU request         | `100m`                    |
-| `resources.requests.memory` | Memory request      | `128Mi`                   |
-| `nodeSelector`              | Node selector       | `{}`                      |
-| `tolerations`               | Pod tolerations     | Control-plane tolerations |
-| `affinity`                  | Pod affinity rules  | `{}`                      |
-| `priorityClassName`         | Priority class name | `""`                      |
+| Parameter                   | Description                                                                        | Default                   |
+| --------------------------- | ---------------------------------------------------------------------------------- | ------------------------- |
+| `resources.limits.cpu`      | CPU limit                                                                          | `200m`                    |
+| `resources.limits.memory`   | Memory limit                                                                       | `256Mi`                   |
+| `resources.requests.cpu`    | CPU request                                                                        | `100m`                    |
+| `resources.requests.memory` | Memory request                                                                     | `128Mi`                   |
+| `nodeSelector`              | Node selector                                                                      | `{}`                      |
+| `tolerations`               | Pod tolerations                                                                    | Control-plane tolerations |
+| `affinity`                  | Pod affinity rules                                                                 | `{}`                      |
+| `priorityClassName`         | Priority class name                                                                | `""`                      |
+| `hostNetwork`               | Use the node network namespace (agent reports the node IP)                         | `false`                   |
+| `dnsPolicy`                 | Pod DNS policy (`ClusterFirstWithHostNet` when empty and `hostNetwork` is enabled) | `""`                      |
 
 ### Pod configuration
 
@@ -188,12 +190,12 @@ For mounting additional host paths (e.g., host logs to monitor):
 
 ### Optional features
 
-| Parameter                          | Description                | Default |
-| ---------------------------------- | -------------------------- | ------- |
-| `podDisruptionBudget.enabled`      | Enable PodDisruptionBudget | `false` |
-| `podDisruptionBudget.minAvailable` | Minimum available pods     | `1`     |
-| `networkPolicy.enabled`            | Enable NetworkPolicy       | `false` |
-| `networkPolicy.extraEgress`        | Additional egress rules    | `[]`    |
+| Parameter                          | Description                                          | Default |
+| ---------------------------------- | ---------------------------------------------------- | ------- |
+| `podDisruptionBudget.enabled`      | Enable PodDisruptionBudget                           | `false` |
+| `podDisruptionBudget.minAvailable` | Minimum available pods                               | `1`     |
+| `networkPolicy.enabled`            | Enable NetworkPolicy (ignored by `hostNetwork` pods) | `false` |
+| `networkPolicy.extraEgress`        | Additional egress rules                              | `[]`    |
 
 ### Values validation
 

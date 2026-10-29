@@ -53,6 +53,12 @@ spec:
       {{- with .Values.priorityClassName }}
       priorityClassName: {{ . }}
       {{- end }}
+      {{- if .Values.hostNetwork }}
+      hostNetwork: true
+      {{- end }}
+      {{- with (.Values.dnsPolicy | default (ternary "ClusterFirstWithHostNet" "" .Values.hostNetwork)) }}
+      dnsPolicy: {{ . }}
+      {{- end }}
       initContainers:
         {{- include "wazuh-agent.initContainer.cleanupStaleFiles" . | nindent 8 }}
         {{- include "wazuh-agent.initContainer.seedOssecTree" . | nindent 8 }}
